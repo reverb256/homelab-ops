@@ -1,0 +1,25 @@
+# Logs
+*.log
+
+# Temp files
+*.tmp
+
+# Secrets (encrypted only)
+!*.age
+!*.yaml (sops)
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+
+# Node
+node_modules/
+.npm/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
