@@ -1,0 +1,265 @@
+#!/usr/bin/env bash
+# TP-Link Smart Switch CLI
+# Manage TP-Link Easy Smart Switches on the local network
+# Switches at: 10.1.1.10, 10.1.1.11, 10.1.1.12, 10.1.1.13
+
+set -euo pipefail
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[✓]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[!]${NC} $1"; }
+log_error() { echo -e "${RED}[✗]${NC} $1"; }
+
+AUTOMATE_SCRIPT="/etc/tplink-switches/automate.py"
+
+# Switch configurations (using index for compatibility)
+SWITCH_IPS=("10.1.1.10" "10.1.1.11" "10.1.1.12" "10.1.1.13")
+SWITCH_NAMES=("tl-sg105e-1" "tl-sg105e-2" "tl-sg105e-3" "tl-sg105e-4")
+
+# Get switch name by IP
+get_switch_name() {
+    local ip="$1"
+    for i in "${!SWITCH_IPS[@]}"; do
+        if [[ "${SWITCH_IPS[$i]}" == "$ip" ]]; then
+            echo "${SWITCH_NAMES[$i]}"
+            return 0
+        fi
+    done
+    echo "$ip"
+}
+
+# Get switch IP by name
+get_switch_ip() {
+    local name="$1"
+    for i in "${!SWITCH_NAMES[@]}"; do
+        if [[ "${SWITCH_NAMES[$i]}" == "$name" ]]; then
+            echo "${SWITCH_IPS[$i]}"
+            return 0
+        fi
+    done
+    echo ""
+}
+
+# Check if automation script exists
+check_automation_script() {
+    if [[ ! -f "$AUTOMATE_SCRIPT" ]]; then
+        log_warning "Automation script not found (service not deployed yet)"
+        log_info "Falling back to basic connectivity tests..."
+        return 1
+    fi
+    return 0
+}
+
+show_usage() {
+    cat << EOF
+TP-Link Smart Switch Management CLI
+
+USAGE:
+    tplink <command> [options]
+
+COMMANDS:
+    status [switch]          Show status of switch(es)
+    configure [switch]       Configure switch(es) with VLANs
+    monitor [switch]         Monitor switch status
+    screenshot [switch]      Take screenshot(s) of switch web UI
+    test [switch]            Test connectivity to switch
+    list                     List all configured switches
+    web <switch>             Open web interface in browser
+
+SWITCH:
+    Can be specified by IP (10.1.1.10) or name (tl-sg105e-1)
+    If omitted, command applies to all switches
+
+EXAMPLES:
+    tplink list                      # List all switches
+    tplink test                       # Test all switches
+    tplink test 10.1.1.10             # Test specific switch
+    tplink web tl-sg105e-1            # Open web UI
+
+SWITCHES:
+EOF
+    for i in "${!SWITCH_IPS[@]}"; do
+        echo "    ${SWITCH_NAMES[$i]}    ${SWITCH_IPS[$i]}"
+    done
+}
+
+test_connectivity() {
+    local switch_target="$1"
+    local switch_ip=""
+    local switch_name=""
+
+    # Check if IP or name was provided
+    if [[ "$switch_target" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        switch_ip="$switch_target"
+        switch_name="$(get_switch_name "$switch_ip")"
+    else
+        switch_ip="$(get_switch_ip "$switch_target")"
+        switch_name="$switch_target"
+    fi
+
+    if [[ -z "$switch_ip" ]]; then
+        log_error "Switch not found: $switch_target"
+        return 1
+    fi
+
+    log_info "Testing connectivity to $switch_name ($switch_ip)..."
+
+    # Ping test
+    if ping -c 2 -W 2 "$switch_ip" &>/dev/null; then
+        log_success "Ping: OK"
+    else
+        log_error "Ping: FAILED"
+        return 1
+    fi
+
+    # HTTP test
+    local http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "http://$switch_ip" 2>/dev/null || echo "000")
+    if [[ "$http_code" =~ ^[23] ]]; then
+        log_success "HTTP: OK (HTTP $http_code)"
+    elif [[ "$http_code" == "401" ]]; then
+        log_success "HTTP: OK (authentication required - expected)"
+    else
+        log_warning "HTTP: Response code $http_code"
+    fi
+
+    # Port scan for common ports
+    log_info "Checking common ports..."
+    for port in 80 443 161 162; do
+        if timeout 1 bash -c "echo >/dev/tcp/$switch_ip/$port" 2>/dev/null; then
+            echo "    - Port $port: OPEN"
+        fi
+    done
+
+    return 0
+}
+
+open_web_ui() {
+    local switch="$1"
+    local switch_ip=""
+
+    # Resolve name to IP
+    if [[ "$switch" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        switch_ip="$switch"
+    else
+        switch_ip="$(get_switch_ip "$switch")"
+    fi
+
+    if [[ -z "$switch_ip" ]]; then
+        log_error "Switch not found: $switch"
+        return 1
+    fi
+
+    local switch_name="$(get_switch_name "$switch_ip")"
+    log_info "Opening web UI for $switch_name ($switch_ip)..."
+
+    # Try different browsers
+    for browser in firefox chromium google-chrome xdg-open; do
+        if command -v "$browser" &>/dev/null; then
+            "$browser" "http://$switch_ip" 2>/dev/null &
+            log_success "Opened in $browser"
+            return 0
+        fi
+    done
+
+    log_error "No browser found. Open manually: http://$switch_ip"
+}
+
+list_switches() {
+    echo "CONFIGURED SWITCHES:"
+    echo "────────────────────────────────────────────────────────────"
+    printf "%-20s %-15s %-10s\n" "NAME" "IP ADDRESS" "STATUS"
+    echo "────────────────────────────────────────────────────────────"
+
+    for i in "${!SWITCH_IPS[@]}"; do
+        local ip="${SWITCH_IPS[$i]}"
+        local name="${SWITCH_NAMES[$i]}"
+        local status="Unknown"
+
+        if ping -c 1 -W 1 "$ip" &>/dev/null; then
+            status="${GREEN}Online${NC}"
+        else
+            status="${RED}Offline${NC}"
+        fi
+
+        printf "%-20s %-15s " "$name" "$ip"
+        echo -e "$status"
+    done
+    echo "────────────────────────────────────────────────────────────"
+}
+
+# Main command dispatcher
+case "${1:-help}" in
+    status)
+        if check_automation_script; then
+            if [[ -n "${2:-}" ]]; then
+                python3 "$AUTOMATE_SCRIPT" status "$2"
+            else
+                python3 "$AUTOMATE_SCRIPT" status | jq '.' 2>/dev/null || python3 "$AUTOMATE_SCRIPT" status
+            fi
+        else
+            log_info "Use 'tplink list' to check switch availability"
+        fi
+        ;;
+    configure)
+        check_automation_script || exit 1
+        log_warning "This will modify switch configurations. Continue? (y/N)"
+        read -r -n 1 confirm
+        echo
+        if [[ $confirm =~ ^[Yy]$ ]]; then
+            if [[ -n "${2:-}" ]]; then
+                python3 "$AUTOMATE_SCRIPT" configure "$2"
+            else
+                python3 "$AUTOMATE_SCRIPT" configure
+            fi
+        else
+            log_info "Cancelled"
+        fi
+        ;;
+    monitor)
+        check_automation_script || exit 1
+        python3 "$AUTOMATE_SCRIPT" monitor "${2:-}"
+        ;;
+    screenshot)
+        check_automation_script || exit 1
+        python3 "$AUTOMATE_SCRIPT" screenshot "${2:-}"
+        log_info "Screenshots saved to: /var/cache/tplink-switches/screenshots/"
+        ls -la /var/cache/tplink-switches/screenshots/*.png 2>/dev/null | tail -5
+        ;;
+    test)
+        if [[ -n "${2:-}" ]]; then
+            test_connectivity "$2"
+        else
+            for ip in "${SWITCH_IPS[@]}"; do
+                echo ""
+                test_connectivity "$ip"
+            done
+        fi
+        ;;
+    list)
+        list_switches
+        ;;
+    web)
+        if [[ -n "${2:-}" ]]; then
+            open_web_ui "$2"
+        else
+            log_error "Please specify a switch (IP or name)"
+            list_switches
+        fi
+        ;;
+    help|--help|-h)
+        show_usage
+        ;;
+    *)
+        log_error "Unknown command: $1"
+        echo ""
+        show_usage
+        exit 1
+        ;;
+esac
