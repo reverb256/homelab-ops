@@ -2,7 +2,7 @@
 # hsync — sync all project worktrees across all cluster nodes
 set -euo pipefail
 
-SYNC_NODES=(zephyr sentry nexus forge)
+SYNC_NODES=(sentry nexus forge)
 PROJECTS_DIR="/data/projects/own"
 LOCAL_HOST="$(hostname -s)"
 

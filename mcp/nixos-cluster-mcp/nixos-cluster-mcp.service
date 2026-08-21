@@ -1,0 +1,32 @@
+[Unit]
+Description=NixOS Cluster MCP Server (SSE)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=j_kro
+# Run as a persistent SSE daemon so clients connect over the network instead of
+# spawning a fresh flake-eval per call. Builds happen on nexus (46GB) — never zephyr.
+ExecStart=/nix/store/nixos-cluster-mcp/bin/nixos-cluster-mcp --transport sse --host 0.0.0.0 --port 8081
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=5
+# Watchdog: if the server stops reporting, systemd restarts it (catches hangs)
+WatchdogSec=120
+# Resource limits — bounded so a runaway build can't consume all RAM
+MemoryMax=1G
+CPUQuota=80%
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/tmp /var/lib/nixos-cluster-mcp
+# Logging to journald
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

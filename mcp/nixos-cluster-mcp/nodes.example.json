@@ -1,0 +1,62 @@
+[
+  {
+    "name": "zephyr",
+    "host": "10.1.1.110",
+    "user": "j_kro",
+    "port": 22,
+    "ssh_key": "~/.ssh/id_ed25519",
+    "use_flake": true,
+    "flake_path": "/etc/nixos",
+    "build_host": "nexus",
+    "allow_deploy": true,
+    "allow_build": true,
+    "allow_rollback": true,
+    "mining_host": true,
+    "tags": ["workstation", "control-plane", "gaming"]
+  },
+  {
+    "name": "nexus",
+    "host": "10.1.1.120",
+    "user": "j_kro",
+    "port": 22,
+    "ssh_key": "~/.ssh/id_ed25519",
+    "use_flake": true,
+    "flake_path": "/etc/nixos",
+    "build_host": "nexus",
+    "allow_deploy": true,
+    "allow_build": true,
+    "allow_rollback": true,
+    "mining_host": true,
+    "tags": ["primary-server", "gateway", "build-host"]
+  },
+  {
+    "name": "forge",
+    "host": "10.1.1.130",
+    "user": "j_kro",
+    "port": 22,
+    "ssh_key": "~/.ssh/id_ed25519",
+    "use_flake": true,
+    "flake_path": "/etc/nixos",
+    "build_host": "nexus",
+    "allow_deploy": true,
+    "allow_build": true,
+    "allow_rollback": true,
+    "mining_host": true,
+    "tags": ["gpu-compute", "mining"]
+  },
+  {
+    "name": "sentry",
+    "host": "10.1.1.140",
+    "user": "j_kro",
+    "port": 22,
+    "ssh_key": "~/.ssh/id_ed25519",
+    "use_flake": true,
+    "flake_path": "/etc/nixos",
+    "build_host": "nexus",
+    "allow_deploy": true,
+    "allow_build": true,
+    "allow_rollback": true,
+    "mining_host": false,
+    "tags": ["monitoring", "rocm-inference"]
+  }
+]

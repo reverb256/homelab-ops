@@ -7,7 +7,7 @@ set -euo pipefail
 
 LOCK_DIR="/tmp"
 MAX_AGE_MINUTES=30
-HOSTS=("zephyr" "nexus" "forge" "sentry")
+HOSTS=("nexus" "forge" "sentry")
 
 echo "=== Deployment Pre-Flight Checks ===" >&2
 
@@ -67,8 +67,8 @@ else
   echo "✓ No colmena lock found" >&2
 fi
 
-# Check nixos-rebuild locks on all hosts
-echo "Checking nixos-rebuild locks on all hosts..." >&2
+# Check nixos-rebuild locks on deployment targets
+echo "Checking nixos-rebuild locks on deployment targets..." >&2
 for host in "${HOSTS[@]}"; do
   if ssh "$host" "test -d /run/nixos-rebuild" 2>/dev/null; then
     lock_files=$(ssh "$host" "ls -la /run/nixos-rebuild/" 2>/dev/null || echo "")

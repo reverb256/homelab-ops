@@ -1,0 +1,6 @@
+Metadata-Version: 2.4
+Name: nixos-cluster-mcp
+Version: 0.2.0
+Summary: MCP server for declarative NixOS cluster management over SSH (ControlMaster), with preflight safety gates, streaming builds, and audit logging.
+Requires-Python: >=3.12
+Requires-Dist: fastmcp>=2.3.0

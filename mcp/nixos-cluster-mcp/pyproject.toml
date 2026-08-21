@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nixos-cluster-mcp"
+version = "0.2.0"
+description = "MCP server for declarative NixOS cluster management over SSH (ControlMaster), with preflight safety gates, streaming builds, and audit logging."
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=2.3.0",
+]
+
+[project.scripts]
+nixos-cluster-mcp = "nixos_cluster_mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
