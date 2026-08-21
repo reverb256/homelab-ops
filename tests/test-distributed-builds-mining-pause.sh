@@ -100,7 +100,7 @@ wait_for_mining_resume() {
         fi
 
         sleep 2
-        elapsed=$((elapsed + 2)
+        elapsed=$((elapsed + 2))
     done
 
     log_warn "⚠ Mining did not resume on $host within ${timeout}s (may be idle workload)"
@@ -111,7 +111,7 @@ wait_for_mining_resume() {
 # PARSE ARGUMENTS
 # ============================================================================
 
-COORDINATOR="${1:-zephyr}"
+COORDINATOR="${1:-nexus}"
 WORKER="${2:-nexus}"
 
 log "=========================================="

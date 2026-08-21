@@ -1,0 +1,2 @@
+[console_scripts]
+nixos-cluster-mcp = nixos_cluster_mcp.server:main

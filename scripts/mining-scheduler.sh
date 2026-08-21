@@ -19,7 +19,6 @@ declare -A HOST_MINERS
 HOST_MINERS[nexus]="xmrig-nexus"
 HOST_MINERS[sentry]="xmrig-sentry"
 HOST_MINERS[forge]="gpu-miner-forge-amd-0 gpu-miner-forge-amd-1 gpu-miner-forge-nvidia-0 gpu-miner-forge-nvidia-1"
-HOST_MINERS[zephyr]="gpu-miner-zephyr-nvidia gpu-miner-zephyr-3060ti-gpu"
 
 get_miners_for_host() {
     local host="$1"
@@ -27,7 +26,7 @@ get_miners_for_host() {
 }
 
 get_all_miners() {
-    for host in nexus sentry forge zephyr; do
+    for host in nexus sentry forge; do
         echo -n "$(get_miners_for_host "$host") "
     done
 }

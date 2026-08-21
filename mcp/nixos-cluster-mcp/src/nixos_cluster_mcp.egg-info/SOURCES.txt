@@ -1,0 +1,12 @@
+pyproject.toml
+src/nixos_cluster_mcp/__init__.py
+src/nixos_cluster_mcp/nodes.py
+src/nixos_cluster_mcp/server.py
+src/nixos_cluster_mcp/ssh.py
+src/nixos_cluster_mcp.egg-info/PKG-INFO
+src/nixos_cluster_mcp.egg-info/SOURCES.txt
+src/nixos_cluster_mcp.egg-info/dependency_links.txt
+src/nixos_cluster_mcp.egg-info/entry_points.txt
+src/nixos_cluster_mcp.egg-info/requires.txt
+src/nixos_cluster_mcp.egg-info/top_level.txt
+tests/test_server.py

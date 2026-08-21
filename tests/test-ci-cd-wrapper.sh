@@ -36,10 +36,10 @@ log_info() {
 
 # Test 1: Wrapper exists and is executable
 test_wrapper_exists() {
-    log_test "Wrapper exists on all nodes"
+    log_test "Wrapper exists on all deployment targets"
 
     local all_good=true
-    for node in zephyr nexus forge sentry; do
+    for node in nexus forge sentry; do
         if [ "$node" = "$(hostname -s)" ]; then
             if [ -x "/run/current-system/sw/bin/nixos-rebuild" ]; then
                 echo "  ✓ $node: wrapper present"
@@ -58,17 +58,17 @@ test_wrapper_exists() {
     done
 
     if $all_good; then
-        log_pass "Wrapper present on all nodes"
+        log_pass "Wrapper present on all deployment targets"
         return 0
     else
-        log_fail "Wrapper missing on some nodes"
+        log_fail "Wrapper missing on some deployment targets"
         return 1
     fi
 }
 
 # Test 2: Wrapper has CPU-only mining pause logic
 test_cpu_mining_only() {
-    log_test "Wrapper only pauses CPU mining (not GPU)"
+    log_test "Wrapper only pauses CPU mining on deployment targets (not GPU)"
 
     local all_good=true
     for node in nexus forge sentry; do
@@ -98,10 +98,10 @@ test_cpu_mining_only() {
 
 # Test 3: Native binary symlink exists
 test_native_binary() {
-    log_test "Native binary symlink exists"
+    log_test "Native binary symlink exists on deployment targets"
 
     local all_good=true
-    for node in zephyr nexus forge sentry; do
+    for node in nexus forge sentry; do
         if [ "$node" = "$(hostname -s)" ]; then
             if [ -L "/run/wrappers/bin/.nixos-rebuild-native" ]; then
                 echo "  ✓ $node: native binary symlink exists"
@@ -120,20 +120,20 @@ test_native_binary() {
     done
 
     if $all_good; then
-        log_pass "Native binary symlink present on all nodes"
+        log_pass "Native binary symlink present on all deployment targets"
         return 0
     else
-        log_fail "Native binary symlink missing on some nodes"
+        log_fail "Native binary symlink missing on some deployment targets"
         return 1
     fi
 }
 
 # Test 4: State directory exists
 test_state_dir() {
-    log_test "State directory /run/nixos-deploy exists"
+    log_test "State directory /run/nixos-deploy exists on deployment targets"
 
     local all_good=true
-    for node in zephyr nexus forge sentry; do
+    for node in nexus forge sentry; do
         if [ "$node" = "$(hostname -s)" ]; then
             if [ -d "/run/nixos-deploy" ]; then
                 echo "  ✓ $node: state directory exists"
@@ -152,10 +152,10 @@ test_state_dir() {
     done
 
     if $all_good; then
-        log_pass "State directory present on all nodes"
+        log_pass "State directory present on all deployment targets"
         return 0
     else
-        log_fail "State directory missing on some nodes"
+        log_fail "State directory missing on some deployment targets"
         return 1
     fi
 }
@@ -165,13 +165,12 @@ test_distributed_builds() {
     log_test "Distributed builds configured correctly"
 
     local all_good=true
-    for node in zephyr nexus forge sentry; do
+    for node in nexus forge sentry; do
         local expected_count
         case "$node" in
-            zephyr) expected_count=3 ;;  # Should have nexus, forge, sentry
-            nexus) expected_count=3 ;;   # Should have zephyr, forge, sentry
-            forge) expected_count=3 ;;   # Should have zephyr, nexus, sentry
-            sentry) expected_count=3 ;;  # Should have zephyr, nexus, forge
+            nexus) expected_count=2 ;;   # Should have forge, sentry
+            forge) expected_count=2 ;;   # Should have nexus, sentry
+            sentry) expected_count=2 ;;  # Should have nexus, forge
         esac
 
         local actual_count
@@ -203,7 +202,7 @@ test_self_exclusion() {
     log_test "Self-exclusion filter working"
 
     local all_good=true
-    for node in zephyr nexus forge sentry; do
+    for node in nexus forge sentry; do
         local has_self=false
         if [ "$node" = "$(hostname -s)" ]; then
             if grep -q "hostName = $node" /etc/nix/machines 2>/dev/null; then
