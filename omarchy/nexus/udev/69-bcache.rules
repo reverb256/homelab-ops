@@ -1,0 +1,26 @@
+# Register bcache member devices so /dev/bcache0 assembles at boot.
+#
+# Arch has no bcache-tools package (extra/bcachefs-* is a DIFFERENT
+# filesystem) and therefore ships none of the usual bcache udev rules or the
+# bcache-register helper. We write the device node straight to the kernel's
+# sysfs register interface instead — no helper binary required.
+#
+# register_quiet (not register) is deliberate: it returns silently when a
+# device is already registered. Using plain `register` produces
+# "device already registered" errors on every udev change event.
+# See g2p/bcache-tools issue #36.
+#
+# blkid identifies bcache members as ID_FS_TYPE=bcache (util-linux 2.24+),
+# so matching on that is enough; no probe-bcache call is needed.
+
+ACTION=="remove", GOTO="bcache_end"
+
+# Only act on device add — change events would re-register needlessly.
+ACTION!="add", GOTO="bcache_end"
+
+SUBSYSTEM!="block", GOTO="bcache_end"
+
+ENV{ID_FS_TYPE}=="bcache", RUN{builtin}+="kmod load bcache", \
+  RUN+="/bin/sh -c 'echo %N > /sys/fs/bcache/register_quiet'"
+
+LABEL="bcache_end"

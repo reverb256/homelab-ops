@@ -1,0 +1,36 @@
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit on the host.
+# Applied by apply.sh. Edit the repo copy, commit, re-apply.
+#
+# nexus-storage: PRE-MIGRATION home subvol (recovery reference, read-only)
+#
+# This is the `home` subvolume from the NixOS era, where /home lived on the
+# bcache pool. Omarchy's /home is on the nvme root instead, so this subvol is
+# kept mounted READ-ONLY as a recovery reference — dotfiles, SSH keys, the old
+# Hermes config. Do not write to it and do not make it the live /home.
+#
+# Mounted at /data/oldhome, not /data/nexus-home: a hyphen in the mount path
+# has to be escaped as \x2d in the unit filename, and a literal `\x2d` in a
+# tracked filename is a trap for the next person. systemd refuses the unit
+# outright if the name and Where= disagree (caught by systemd-analyze verify).
+#
+# The underlying device is /dev/bcache0, assembled from /dev/sda (backing) +
+# /dev/sdb (cache) by udev/69-bcache.rules. It is addressed by btrfs UUID so a
+# device-name change cannot mismatch the mount.
+#
+# nofail + a device timeout keep a pool failure from blocking boot.
+
+[Unit]
+Description=nexus-storage: pre-migration home subvol (read-only recovery reference)
+Documentation=https://github.com/reverb256/homelab-ops
+DefaultDependencies=no
+Before=local-fs.target
+After=blockdev@dev-bcache0.target
+
+[Mount]
+What=/dev/disk/by-uuid/08cbb21c-adb0-4e3c-928f-7b6d1fa2d236
+Where=/data/oldhome
+Type=btrfs
+Options=subvol=home,compress=zstd,ssd,discard=async,nofail,x-systemd.device-timeout=30s,ro
+
+[Install]
+WantedBy=local-fs.target
