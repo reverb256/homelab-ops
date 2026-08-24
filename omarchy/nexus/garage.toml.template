@@ -1,0 +1,39 @@
+# Garage config for nexus (Omarchy).
+#
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit /etc/garage.toml.
+# apply.sh renders this template, substituting @RPC_SECRET@ and
+# @METRICS_TOKEN@ from /etc/garage-secrets/, and writes /etc/garage.toml 0600
+# root:root. Secrets never live in git.
+#
+# Version note: this targets garage 2.3.0 (Arch extra/garage). The metadata on
+# disk was written by 1.3.1 under NixOS. db_engine/lmdb, replication_factor and
+# consistency_mode are all still valid in 2.x — the 2.0 breaking change was the
+# removal of replication_mode, which this config never set.
+
+replication_factor = 1
+consistency_mode = "consistent"
+
+# Data lives on the 3.6TB bcache pool (/data/shared is a btrfs subvol of
+# /dev/bcache0), NOT on the root nvme. These paths carry ~274G of existing
+# object data from the NixOS era.
+metadata_dir = "/data/shared/garage/meta"
+data_dir = "/data/shared/garage/data"
+
+db_engine = "lmdb"
+
+# Bind IPv4 explicitly. Binding [::] broke RPC on this host previously
+# (nixos-config commit 4db80bc38).
+rpc_bind_addr = "0.0.0.0:3901"
+rpc_public_addr = "10.1.1.120:3901"
+rpc_secret = "@RPC_SECRET@"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "0.0.0.0:3900"
+root_domain = ".s3.garage.cluster"
+
+[admin]
+# Admin API is loopback-only. Note that garage 2.0 moved these endpoints from
+# /v1/ to /v2/ — update any tooling that talks to this port.
+api_bind_addr = "127.0.0.1:3902"
+metrics_token = "@METRICS_TOKEN@"
