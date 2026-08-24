@@ -1,0 +1,56 @@
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit on the host.
+# Installed by apply.sh to /etc/systemd/system/memlawb-server.service
+#
+# memlawb is the agent's encrypted memory backend. Zero-knowledge: content is
+# AES-256-GCM encrypted client-side, the server only ever stores ciphertext.
+# It is a plain Bun app with an fs blobstore — no k3s, no registry, no Nix.
+#
+# Migrated from sentry 2026-08-24 (sentry is leaving NixOS). App and data both
+# live on the bcache pool under /data/hermes so they survive a root reinstall,
+# NOT on the root nvme.
+#
+# CRITICAL: DATA_DIR must point at the copied store and the client passphrase +
+# namespace must stay byte-identical. The namespace is the scrypt SALT and the
+# passphrase is the secret, so every (passphrase, namespace) pair derives a
+# different key. There is no re-encrypt tool — changing either one is total,
+# unrecoverable loss of all stored memory.
+#
+# ALLOW_UNAUTHENTICATED=true is the documented single-user self-host mode; the
+# client omits MEMLAWB_API_KEY. STATIC_API_KEYS returns 401 even when correctly
+# configured (upstream bug) — do not fight it.
+
+[Unit]
+Description=memlawb encrypted memory server (fs store, bcache pool)
+Documentation=https://github.com/Gitlawb/memlawb
+After=network-online.target data-hermes.mount
+Wants=network-online.target
+# Requires= not just After=: if the pool is not mounted, the server must NOT
+# start. Starting against a missing DATA_DIR silently creates an EMPTY store on
+# the root filesystem and the agent looks like it lost all memory.
+RequiresMountsFor=/data/hermes
+Requires=data-hermes.mount
+
+[Service]
+Type=simple
+User=j_kro
+Group=j_kro
+WorkingDirectory=/data/hermes/memlawb
+Environment=STORE=fs
+Environment=DATA_DIR=/data/hermes/memlawb-data
+Environment=PORT=8080
+Environment=ALLOW_UNAUTHENTICATED=true
+ExecStart=/usr/bin/bun run /data/hermes/memlawb/src/index.ts
+Restart=on-failure
+RestartSec=5s
+
+# Cheap hardening that does not interfere with the fs store.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=false
+ReadWritePaths=/data/hermes/memlawb-data /data/hermes/memlawb
+RestrictRealtime=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

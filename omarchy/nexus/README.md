@@ -21,7 +21,61 @@ NixOS rule, different mechanism.
 | `systemd/data-*.mount` | `/etc/systemd/system/` | btrfs subvol mounts off `bcache0` |
 | `systemd/garage.service.d/override.conf` | `/etc/systemd/system/garage.service.d/` | point garage at the pool + order it after the mount |
 | `garage.toml.template` | rendered to `/etc/garage.toml` | garage config; secrets injected at apply time |
+| `ssh/10-hardening.conf` | `/etc/ssh/sshd_config.d/` | keys-only sshd (Arch defaults to password auth) |
+| `systemd/memlawb-server.service` | `/etc/systemd/system/` | encrypted memory backend, store on the pool |
+| `bin/memlawb-backup` | `/usr/local/bin/memlawb-backup` | sync the memory store to garage S3 |
+| `systemd/memlawb-backup.{service,timer}` | `/etc/systemd/system/` | daily 04:00 backup, `Persistent=true` |
 | `apply.sh` | — | idempotent installer |
+
+## memlawb (encrypted memory)
+
+Migrated from sentry 2026-08-24, because sentry is leaving NixOS. App at
+`/data/hermes/memlawb`, store at `/data/hermes/memlawb-data` — both on the
+bcache pool, so they survive a root reinstall.
+
+Served on `:8080`, reachable **over the tailnet only** (`ufw allow in on
+tailscale0 to any port 8080`). The zephyr client points at
+`http://100.76.105.73:8080` via `hermes config set
+mcp_servers.memlawb.env.MEMLAWB_URL` — never by editing `config.yaml`, which is
+guard-blocked.
+
+Verified after cutover: **114 entries in `user:j_kro`**, matching sentry exactly,
+and the store tree hash was byte-identical
+(`fab429680cc36fc2…`) before and after the copy.
+
+### Two things that will bite you
+
+1. **Never rotate the passphrase.** Key derivation is
+   `scrypt(passphrase, sha256("memlawb:" + namespace))`. There is no re-encrypt
+   tool, so changing the passphrase *or* the namespace derives a different
+   AES-256-GCM key and every existing entry becomes unrecoverable.
+2. **The passphrase must carry no trailing newline.** `~/.memlawb-passphrase.txt`
+   is 65 bytes but the passphrase is 64 chars. Passing the raw file contents
+   yields `error: Unsupported state or unable to authenticate data`, which looks
+   exactly like data corruption. Always `tr -d '\n'`.
+
+### Backup
+
+The `memlawb` garage bucket had existed since 2026-08-19 with **0 objects** — the
+store had no offsite copy at all. Now covered by `memlawb-backup.timer`
+(daily 04:00): syncs to `s3://memlawb/current/` plus a dated
+`s3://memlawb/snapshots/<stamp>/`, keeping 14 snapshots.
+
+The script deliberately:
+- uses **no `--delete`** on `current/`, so a local loss cannot propagate;
+- **refuses to run on an empty source**, since an empty store is the signature of
+  the service starting against an unmounted pool — syncing it would look
+  successful and protect nothing;
+- **verifies by object count**, not exit code;
+- reads garage credentials from `garage key info --show-secret` at runtime, so no
+  secret files sit on disk.
+
+Verify a backup actually landed:
+
+```bash
+sudo garage -c /etc/garage.toml bucket info memlawb | grep -E 'Objects|Size'
+```
+
 
 ## The storage pool
 

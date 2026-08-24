@@ -1,0 +1,16 @@
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit on the host.
+#
+# Daily at 04:00. Persistent=true so a missed run (host off) fires on next boot
+# rather than silently skipping a day.
+
+[Unit]
+Description=Daily memlawb backup to garage S3
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+Persistent=true
+RandomizedDelaySec=15m
+Unit=memlawb-backup.service
+
+[Install]
+WantedBy=timers.target

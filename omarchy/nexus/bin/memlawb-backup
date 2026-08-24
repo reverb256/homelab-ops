@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Back up the memlawb encrypted store to garage S3.
+#
+# Managed by homelab-ops/omarchy/nexus — installed by apply.sh to
+# /usr/local/bin/memlawb-backup and driven by memlawb-backup.timer.
+#
+# The store is ALREADY ciphertext (memlawb encrypts client-side with
+# AES-256-GCM), so pushing it to S3 leaks nothing. The passphrase is never
+# involved here and must never be stored alongside the backup.
+#
+# Credentials come from garage itself via the local admin socket, so this needs
+# no sops and no secret files on disk.
+set -euo pipefail
+
+SRC=/data/hermes/memlawb-data
+BUCKET=memlawb
+ENDPOINT=http://127.0.0.1:3900
+KEYNAME=memlawb-key
+STAMP=$(date +%Y%m%d-%H%M%S)
+RETAIN=14
+
+command -v aws >/dev/null 2>&1 || { echo "aws cli missing" >&2; exit 2; }
+[[ -d "$SRC" ]] || { echo "source $SRC missing — is the pool mounted?" >&2; exit 2; }
+
+# Refuse to back up an empty store: that is the signature of garage/memlawb
+# starting against an unmounted pool, and syncing it would look successful
+# while protecting nothing.
+if [[ -z "$(find "$SRC" -type f -print -quit)" ]]; then
+  echo "source $SRC is EMPTY — refusing to sync (pool not mounted?)" >&2
+  exit 2
+fi
+
+info=$(garage -c /etc/garage.toml key info "$KEYNAME" --show-secret 2>/dev/null)
+AWS_ACCESS_KEY_ID=$(printf '%s\n' "$info" | sed -n 's/^Key ID:[[:space:]]*//p')
+AWS_SECRET_ACCESS_KEY=$(printf '%s\n' "$info" | sed -n 's/^Secret key:[[:space:]]*//p')
+[[ -n "$AWS_ACCESS_KEY_ID" && -n "$AWS_SECRET_ACCESS_KEY" ]] \
+  || { echo "could not read $KEYNAME credentials from garage" >&2; exit 2; }
+export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+export AWS_DEFAULT_REGION=garage
+
+# NO --delete on current/: a local loss must never propagate to the backup.
+aws --endpoint-url "$ENDPOINT" s3 sync "$SRC" "s3://$BUCKET/current/" --only-show-errors
+aws --endpoint-url "$ENDPOINT" s3 sync "$SRC" "s3://$BUCKET/snapshots/$STAMP/" --only-show-errors
+
+# Verify by OBJECT COUNT, never by exit code.
+n=$(aws --endpoint-url "$ENDPOINT" s3 ls "s3://$BUCKET/current/" --recursive | wc -l)
+[[ "$n" -gt 0 ]] || { echo "backup verified EMPTY — failing" >&2; exit 1; }
+echo "memlawb backup ok: $n objects in current/, snapshot $STAMP"
+
+# Prune old snapshots, keeping the most recent $RETAIN.
+mapfile -t snaps < <(aws --endpoint-url "$ENDPOINT" s3 ls "s3://$BUCKET/snapshots/" \
+  | awk '{print $2}' | tr -d '/' | sort)
+count=${#snaps[@]}
+if (( count > RETAIN )); then
+  for s in "${snaps[@]:0:$((count - RETAIN))}"; do
+    aws --endpoint-url "$ENDPOINT" s3 rm "s3://$BUCKET/snapshots/$s/" --recursive --only-show-errors
+    echo "pruned snapshot $s"
+  done
+fi
