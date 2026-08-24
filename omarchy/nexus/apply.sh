@@ -123,7 +123,33 @@ if (( ! CHECK )); then
     || warn "no cluster_layout in metadata — this may be an uninitialized garage"
 fi
 
-# ── 3. garage user + package ──────────────────────────────────────────────
+# ── 3. sshd hardening ─────────────────────────────────────────────────────
+log "sshd hardening"
+
+install_file "$REPO_DIR/ssh/10-hardening.conf" /etc/ssh/sshd_config.d/10-hardening.conf
+
+if (( ! CHECK )); then
+  # Validate BEFORE reloading — a bad sshd_config that gets reloaded can lock
+  # us out of a host whose only ingress is SSH.
+  if $SUDO sshd -t 2>/dev/null; then
+    $SUDO systemctl reload sshd
+    log "  sshd config valid, reloaded"
+    # sshd -T echoes keywords in their canonical CAPITALIZED form
+    # ("PasswordAuthentication no"), not lowercase — grep case-insensitively or
+    # this check reports a false failure while the setting is actually applied.
+    if $SUDO sshd -T 2>/dev/null | grep -qi '^passwordauthentication no'; then
+      log "  verified: password auth disabled"
+    else
+      warn "password auth still enabled — check drop-in ordering"
+    fi
+  else
+    warn "sshd -t FAILED; not reloading. Offending config left in place:"
+    $SUDO sshd -t 2>&1 | head -5 >&2 || true
+    die "refusing to reload a broken sshd config"
+  fi
+fi
+
+# ── 4. garage user + package ──────────────────────────────────────────────
 log "Garage user and package"
 
 # The existing data is owned by uid 980/gid 974 from the NixOS host, where
