@@ -1,0 +1,17 @@
+[Unit]
+Description=PeakMiner GPU miner - zephyr-3090
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Environment="CUDA_DEVICE_ORDER=PCI_BUS_ID"
+Environment="LD_LIBRARY_PATH=/usr/lib/nvidia:/usr/lib"
+ExecStartPre=/usr/bin/bash -c "/usr/bin/nvidia-smi -i 1 -pl 250"
+ExecStart=/usr/local/bin/peakminer --url "stratum+tcp://prl-us.kryptex.network:7048" --user "krxXVNVMM7/zephyr-3090" --password x --coin pearl --devices 1 --api-port 21554
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
