@@ -71,7 +71,21 @@ Note the mode: a service running as a non-root user needs the *config* readable
 by its group (garage's `/etc/garage.toml` is `0640 root:garage`), but the raw
 secret files stay `0600 root:root` and are only read by the apply script.
 
+## Hermes .env auto-sync (zephyr)
+
+`~/.local/bin/sops-hermes-env-sync.sh` pulls every Hermes-consumed key from
+this repo into `~/.hermes/.env`. Runs at login via
+`systemctl --user enable hermes-secrets-sync.service`; also safe to run by hand.
+Store wins. A decrypt returning empty never blanks a live key.
+
+To manage an additional key: encrypt it here (`data:` binary format, all five
+recipients), then add one line to the `MAP=(...)` table in the script.
+
 ## Verification
+
+```bash
+~/Projects/homelab-ops/scripts/test-ai-keys.sh   # live auth check per key
+```
 
 ```bash
 cd ~/Projects/nixos-secrets
