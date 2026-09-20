@@ -1,0 +1,18 @@
+[Unit]
+Description=gitlawb Postgres 16 (metadata for the gitlawb node)
+
+[Container]
+ContainerName=gitlawb-pg
+Image=docker.io/library/postgres:16-alpine
+Network=gitlawb.network
+Volume=/srv/gitlawb/pg:/var/lib/postgresql/data
+EnvironmentFile=/srv/gitlawb/gitlawb.env
+Environment=POSTGRES_DB=gitlawb
+Environment=POSTGRES_USER=gitlawb
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
