@@ -11,7 +11,7 @@ CHECK=0
 [[ "${1:-}" == "--check" ]] && CHECK=1
 
 log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
-act()  { if (( CHECK )); then printf '  would: %s\n' "$*"; else eval "$*"; fi; }
+act()  { if (( CHECK )); then printf '  would: %s\n' "$*"; fi; }   # display-only under --check; real work runs in the if-blocks below
 RUN="ssh -o BatchMode=yes sentry"
 
 log "Preflight"
