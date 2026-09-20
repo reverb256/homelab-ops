@@ -1,0 +1,31 @@
+[Unit]
+Description=gitlawb node — decentralized git (private, isolated; hub-and-spoke)
+Requires=gitlawb-pg.service
+After=gitlawb-pg.service network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName=gitlawb-node
+# Pinned by digest (2026-09-20) = v0.7.1. Upgrade: pull :latest on sentry,
+# read the new digest, bump it here, re-apply (see README).
+Image=ghcr.io/gitlawb/node@sha256:29193f3a675bcc8effdb87d1e7056139352d174ca348f305dfcdfeedeb0f8390
+Network=gitlawb.network
+PublishPort=10.1.1.140:7545:7545
+Volume=/srv/gitlawb/data:/data
+EnvironmentFile=/srv/gitlawb/gitlawb.env
+Environment=GITLAWB_HOST=0.0.0.0
+Environment=GITLAWB_PORT=7545
+Environment=GITLAWB_PUBLIC_URL=http://10.1.1.140:7545
+Environment=GITLAWB_P2P_PORT=0
+Environment=GITLAWB_BOOTSTRAP_DISABLE_SEEDS=true
+Environment=GITLAWB_PUBLIC_READ=false
+Environment=GITLAWB_AUTO_SYNC=false
+Environment=GITLAWB_ENFORCE_OWNER_PUSH=true
+Environment=GITLAWB_MAX_PACK_BYTES=2147483648
+
+[Service]
+Restart=always
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target
