@@ -39,7 +39,8 @@ done
 log "Enable + reload"
 act "$RUN 'sudo -n systemctl daemon-reload && sudo -n systemctl enable --now gitlawb-backup.timer'"
 if (( ! CHECK )); then
-  sudo_run "systemctl daemon-reload && systemctl enable --now gitlawb-backup.timer"
+  sudo_run "systemctl daemon-reload"
+  sudo_run "systemctl enable --now gitlawb-backup.timer"
 fi
 
 log "Done. Verify with: $RUN 'sudo -n systemctl start gitlawb-backup.service && sudo -n journalctl -u gitlawb-backup -n 10 --no-pager'"
