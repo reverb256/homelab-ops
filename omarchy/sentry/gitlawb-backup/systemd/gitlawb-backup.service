@@ -1,0 +1,19 @@
+# /etc/systemd/system/gitlawb-backup.service
+# Managed by homelab-ops/omarchy/sentry — do not hand-edit on the host.
+# Oneshot driven by gitlawb-backup.timer. Runs as j_kro (sudo -n for podman/root reads;
+# the ssh key to nexus lives in j_kro's home).
+#
+# The node itself must be up or the run is meaningless; the pg container must exist.
+[Unit]
+Description=Back up the gitlawb node (pg + repos + identity) to nexus
+After=gitlawb-node.service network-online.target
+Wants=gitlawb-node.service network-online.target
+
+[Service]
+Type=oneshot
+User=j_kro
+ExecStart=/usr/local/bin/gitlawb-backup
+# Never urgent — stay out of the way of the cluster.
+Nice=10
+IOSchedulingClass=idle
+IOSchedulingPriority=7

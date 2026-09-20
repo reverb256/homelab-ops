@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Back up the gitlawb node (Postgres metadata + bare repos + node identity) to nexus.
+#
+# Managed by homelab-ops/omarchy/sentry — installed by apply.sh to /usr/local/bin/gitlawb-backup,
+# driven by gitlawb-backup.timer. Runs as j_kro; uses passwordless sudo for podman and root reads.
+#
+# The node's repo data is a mirror of GitHub-hosted repositories (see the gitlawb-ops
+# skill, "glb-mirror"), and the node identity can be re-minted, so this backup is a
+# convenience layer — a loss is recoverable by re-push — not the sole source of truth.
+#
+# Artifacts: /srv/gitlawb/backup/{pg-<stamp>.sql.gz,data-<stamp>.tar.gz}, then rsync'd
+# to nexus:~/backups/gitlawb/. Verified by byte count on the destination, never by exit code.
+set -euo pipefail
+
+STAMP=$(date +%Y%m%d-%H%M%S)
+DEST_DIR=/srv/gitlawb/backup
+NEXUS=nexus
+NEXUS_DIR=backups/gitlawb
+RETAIN=7
+
+sudo -n mkdir -p "$DEST_DIR"
+
+# 1. Postgres metadata — consistent snapshot via pg_dump.
+sudo -n sh -c "podman exec gitlawb-pg pg_dump -U gitlawb gitlawb | gzip > '$DEST_DIR/pg-$STAMP.sql.gz'"
+
+# 2. Node data — bare repos + identity key.
+sudo -n tar -C /srv/gitlawb -czf "$DEST_DIR/data-$STAMP.tar.gz" data
+
+# 3. Sanity: refuse empty artifacts (a broken dump must not look like a backup).
+for f in "$DEST_DIR/pg-$STAMP.sql.gz" "$DEST_DIR/data-$STAMP.tar.gz"; do
+  [ -s "$f" ] || { echo "FAIL: $f is empty" >&2; exit 1; }
+done
+sudo -n chmod 644 "$DEST_DIR/pg-$STAMP.sql.gz" "$DEST_DIR/data-$STAMP.tar.gz"
+
+# 4. Ship to nexus (j_kro ssh key; no --delete anywhere).
+rsync -rt --no-perms --no-owner --no-group --omit-dir-times \
+  "$DEST_DIR"/ "$NEXUS:$NEXUS_DIR/"
+
+# 5. Verify by byte count on the destination.
+for f in "pg-$STAMP.sql.gz" "data-$STAMP.tar.gz"; do
+  local_bytes=$(stat -c%s "$DEST_DIR/$f")
+  remote_bytes=$(ssh -o BatchMode=yes "$NEXUS" "stat -c%s '$NEXUS_DIR/$f'")
+  [ "$local_bytes" = "$remote_bytes" ] || { echo "FAIL: size mismatch for $f ($local_bytes vs $remote_bytes)" >&2; exit 1; }
+done
+
+# 6. Rotate locally — keep the newest $RETAIN of each series.
+sudo -n sh -c "ls -1t $DEST_DIR/pg-*.sql.gz   | tail -n +$((RETAIN + 1)) | xargs -r rm -f"
+sudo -n sh -c "ls -1t $DEST_DIR/data-*.tar.gz | tail -n +$((RETAIN + 1)) | xargs -r rm -f"
+
+echo "gitlawb backup ok: pg-$STAMP.sql.gz + data-$STAMP.tar.gz -> $NEXUS:$NEXUS_DIR/"
