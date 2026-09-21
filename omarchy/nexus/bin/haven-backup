@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# Back up the Haven server (k3s ns `mosaic`) to garage S3.
+#
+# Managed by homelab-ops/omarchy/nexus — installed to /usr/local/bin/haven-backup
+# and driven by haven-backup.timer. Pattern: memlawb-backup.
+#
+# Contents: a consistent SQLite snapshot (VACUUM INTO) of /data/haven.db plus
+# /data/.env (JWT/VAPID secrets — garage is private homelab storage; losing
+# .env would invalidate every session and push key).
+#
+# Credentials come from garage itself via the local admin socket
+# (`garage key info ... --show-secret`, root-only). No secret files on disk.
+set -euo pipefail
+
+BUCKET=haven
+ENDPOINT=http://100.76.105.73:3900
+KEYNAME=haven-backup
+STAMP=$(date +%Y%m%d-%H%M%S)
+RETAIN=14
+STAGE=/var/lib/haven-backup
+NS=mosaic
+
+command -v aws >/dev/null 2>&1 || { echo "aws cli missing" >&2; exit 2; }
+mkdir -p "$STAGE"
+
+# 1) Consistent snapshot inside the pod, then copy it out.
+POD=$(k3s kubectl -n "$NS" get pod -l app.kubernetes.io/instance=mosaic -o jsonpath='{.items[0].metadata.name}')
+[[ -n "$POD" ]] || { echo "no haven pod found" >&2; exit 2; }
+
+k3s kubectl -n "$NS" exec -i "$POD" -- node - <<'NODE'
+const Database = require('better-sqlite3');
+const db = new Database('/data/haven.db');
+db.pragma('busy_timeout = 8000');
+db.prepare("VACUUM INTO '/data/backup-haven-auto.db'").run();
+console.log('vacuum ok');
+NODE
+k3s kubectl -n "$NS" cp "$POD:/data/backup-haven-auto.db" "$STAGE/haven-$STAMP.db"
+k3s kubectl -n "$NS" exec "$POD" -- cat /data/.env > "$STAGE/haven-env-$STAMP.txt"
+k3s kubectl -n "$NS" exec "$POD" -- rm -f /data/backup-haven-auto.db
+
+# Refuse to publish an implausibly small file.
+if [[ ! -s "$STAGE/haven-$STAMP.db" || "$(stat -c%s "$STAGE/haven-$STAMP.db")" -lt 4096 ]]; then
+  echo "snapshot is too small — refusing to sync" >&2; exit 2
+fi
+
+# 2) Upload.
+# --- IO-pressure tuning (bcache0 saturation mitigation) ---
+# Serialize uploads and cap bandwidth to survive the saturated bcache0 pool.
+info=$(garage -c /etc/garage.toml key info "$KEYNAME" --show-secret 2>/dev/null)
+AWS_ACCESS_KEY_ID=$(printf '%s\n' "$info" | sed -n 's/^Key ID:[[:space:]]*//p')
+AWS_SECRET_ACCESS_KEY=$(printf '%s\n' "$info" | sed -n 's/^Secret key:[[:space:]]*//p')
+[[ -n "$AWS_ACCESS_KEY_ID" && -n "$AWS_SECRET_ACCESS_KEY" ]] \
+  || { echo "could not read $KEYNAME credentials from garage" >&2; exit 2; }
+export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+export AWS_DEFAULT_REGION=garage
+export AWS_RETRY_MODE=standard AWS_MAX_ATTEMPTS=8
+export AWS_EC2_METADATA_DISABLED=true
+export AWS_REQUEST_CHECKSUM_MODE=WHEN_REQUIRED
+export AWS_RESPONSE_CHECKSUM_MODE=WHEN_REQUIRED
+
+# --- IO-pressure tuning (bcache0 saturation mitigation) ---
+# bcache0 btrfs is at ~97% fill with 3117 corruption errors; the miner + qbittorrent
+# saturate the same disks. Serialize uploads (max_concurrent_requests=1, set via
+# config file since AWS CLI v1 has no --max-concurrent-requests flag) and cap
+# bandwidth so garage's S3 handler isn't starved, and widen the CLI timeout
+# so single-object stalls don't abort the whole sync.
+AWS_CFG=$(mktemp)
+cat > "$AWS_CFG" <<'CFG'
+[default]
+s3 =
+  max_concurrent_requests = 1
+  max_bandwidth = 64MB/s
+  use_accelerate_endpoint = false
+  multipart_threshold = 64MB
+  multipart_chunksize = 16MB
+CFG
+export AWS_CONFIG_FILE="$AWS_CFG"
+trap 'rm -f "$AWS_CFG"' EXIT
+
+# Single-threaded uploads with a generous read timeout to survive btrfs stalls
+# on the near-full bcache0 pool under miner+torrent IO load.
+#
+# Each cp is wrapped in a retry loop: a single Read timeout on garage's S3
+# handler (caused by bcache0 write stalls under saturated IO) must not abort
+# the whole backup. The backoff grows with each attempt to ride out stalls that
+# last several minutes.
+cp_with_retry() {
+  local src="$1" dst="$2" attempt sleep_s
+  for attempt in 1 2 3 4 5 6 7 8; do
+    if aws --endpoint-url "$ENDPOINT" s3 cp "$src" "$dst" \
+        --only-show-errors \
+        --cli-connect-timeout 60 \
+        --cli-read-timeout 300; then
+      return 0
+    fi
+    sleep_s=$((attempt * 30))
+    echo "WARN: upload attempt $attempt failed ($src -> $dst); retrying in ${sleep_s}s" >&2
+    sleep "$sleep_s"
+  done
+  return 1
+}
+
+cp_with_retry "$STAGE/haven-$STAMP.db"      "s3://$BUCKET/current/haven.db"
+cp_with_retry "$STAGE/haven-env-$STAMP.txt" "s3://$BUCKET/current/haven.env"
+cp_with_retry "$STAGE/haven-$STAMP.db"      "s3://$BUCKET/snapshots/$STAMP/haven.db"
+cp_with_retry "$STAGE/haven-env-$STAMP.txt" "s3://$BUCKET/snapshots/$STAMP/haven.env"
+
+# Verify by object count, never by exit code.
+n=$(aws --endpoint-url "$ENDPOINT" s3 ls "s3://$BUCKET/snapshots/$STAMP/" --cli-read-timeout 300 | wc -l)
+[[ "$n" -ge 2 ]] || { echo "backup verify FAILED (objects: $n)" >&2; exit 1; }
+echo "haven backup ok: snapshot $STAMP ($n objects)"
+
+# 3) Prune: keep the most recent RETAIN local copies.
+mapfile -t olds < <(ls -1t "$STAGE"/haven-*.db 2>/dev/null | tail -n +$((RETAIN+1)) || true)
+if [[ "${#olds[@]}" -gt 0 ]]; then
+  rm -f "${olds[@]}"
+  echo "pruned ${#olds[@]} old local snapshots"
+fi

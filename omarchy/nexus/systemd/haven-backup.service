@@ -1,0 +1,20 @@
+# /etc/systemd/system/haven-backup.service
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit on the host.
+# Oneshot driven by haven-backup.timer.
+#
+# Runs as root: needs the garage admin socket (key info --show-secret) and
+# k3s kubectl against the mosaic namespace.
+
+[Unit]
+Description=Back up the Haven server (k3s ns mosaic) to garage S3
+Documentation=https://github.com/reverb256/homelab-ops
+After=network-online.target k3s.service garage.service
+Wants=network-online.target k3s.service
+Requires=garage.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/haven-backup
+Nice=10
+IOSchedulingClass=idle
+IOSchedulingPriority=7
