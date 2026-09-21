@@ -38,8 +38,9 @@ now = time.time()
 # used from within OpenCode" to plain API calls, so it is not a probeable/rotatable target.
 PROBES = {
   "opencode-go":     ("https://opencode.ai/zen/go/v1/chat/completions", "deepseek-flash", ("OPENCODE_GO_API_KEY", "OPENCODE_API_KEY")),
-  "openrouter-free": ("https://openrouter.ai/api/v1/chat/completions", "minimax/minimax-m3:free", ("OPENROUTER_API_KEY",)),
+  "openrouter-free": ("https://openrouter.ai/api/v1/chat/completions", "nvidia/nemotron-3-ultra-550b-a55b:free", ("OPENROUTER_API_KEY",)),
   "nous":            ("https://inference-api.nousresearch.com/v1/chat/completions", "meituan/longcat-2.0:free", ("NOUS_API_KEY",)),
+  "nvidia":          ("https://integrate.api.nvidia.com/v1/chat/completions", "nvidia/nemotron-3-super-120b-a12b", ("NVIDIA_API_KEY",)),
   "kilo":            ("https://api.kilo.ai/api/gateway/chat/completions", "kilo-auto/free", ("KILOCODE_API_KEY",)),
 }
 # rotation targets — VERIFIED LIVE 2026-09-19 (each passed a body-validating probe).
@@ -49,6 +50,7 @@ POOL = [
   ("openrouter-free", "inclusionai/ling-3.0-flash-fin:free"),
   ("nous", "meituan/longcat-2.0:free"),
   ("opencode-go", "deepseek-v4.1-flash"),
+  ("nvidia", "z-ai/glm-5.3"),
 ]
 SNAPSHOT_MAP = {
   "deepseek-v4.1-flash": "opencode-go",
@@ -80,7 +82,7 @@ def env_key(names):
 # bare "401" also matches session ids (…154017…) and created false positives.
 CLASS_PATTERNS = {
   "auth":    re.compile(r"AuthenticationError|Invalid credential|HTTP 401|Error code: 401|AuthError"),
-  "quota":   re.compile(r"HTTP 402|Error code: 402|insufficient_quota|Add credits"),
+  "quota":   re.compile(r"HTTP 402|Error code: 402|insufficient_quota|Add credits|Key limit exceeded|HTTP 403"),
   "rate":    re.compile(r"HTTP 429|Error code: 429|RateLimitError|fair-share"),
   "timeout": re.compile(r"TimeoutError|timed out|ETIMEDOUT|HTTP 408"),
 }
@@ -110,10 +112,17 @@ except Exception:
 
 # ---- 2. count error classes per provider ----
 counts = {}
+lines = []
 try:
     lines = subprocess.run(["tail", "-n", "6000", LOG], capture_output=True, text=True, timeout=30).stdout.splitlines()
 except Exception:
     lines = []
+# per-profile logs (2026-09-21): worker/profile failures live here, not in the root log
+for plog in glob.glob(f"{HOME}/.hermes/profiles/*/logs/agent.log"):
+    try:
+        lines += subprocess.run(["tail", "-n", "1500", plog], capture_output=True, text=True, timeout=30).stdout.splitlines()
+    except Exception:
+        pass
 for ln in lines:
     if "Hook '" in ln:
         continue
