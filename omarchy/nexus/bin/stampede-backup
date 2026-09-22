@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+# stampede-backup — back up the stampede database to Garage.
+#
+# Why this exists: stampede.sqlite is 39G LIVE (45 open handles, `stampede serve
+# --mode live`) with a ~1.9G WAL, and it had NO backup at all — no unit, no
+# bucket. A single copy on a drive whose wear reading is unconfirmed.
+#
+# Copy the nexus pattern, not rclone: the S3 credentials are minted at runtime
+# from the local garage admin socket, so nothing secret sits on disk and the job
+# survives a key rotation.
+#
+# Live SQLite cannot be uploaded consistently: aws checksums the file and THEN
+# streams it, so a page written mid-stream fails with
+#   `400 Invalid digest: Failed to validate checksum for algorithm Crc32`
+# Staging with `sqlite3 .backup` fixes that (the online-backup API takes a
+# consistent snapshot) — the same failure that stalled the media-config job.
+set -euo pipefail
+
+SRC=/data/nvme1/stampede-data
+BUCKET=stampede
+KEYNAME=stampede-backup
+ENDPOINT=http://100.76.105.73:3900
+GARAGE_CONF=/etc/garage.toml
+# Stage on the DESTINATION device (/data/fast), never /tmp — /tmp is a 24G tmpfs
+# and a big save there truncates, which then reads as a corrupt layer.
+STAGE_BASE=/data/fast/backup-stage/stampede
+KEEP_SNAPSHOTS=7
+
+STAMP=$(date +%Y%m%d-%H%M%S)
+STAGE="$STAGE_BASE/$STAMP"
+
+log(){ printf '[%s] %s\n' "$(date +%H:%M:%S)" "$*"; }
+die(){ printf '[%s] FATAL: %s\n' "$(date +%H:%M:%S)" "$*" >&2; exit 1; }
+
+cleanup(){ rm -rf "$STAGE" 2>/dev/null || true; }
+trap cleanup EXIT
+
+[ -d "$SRC" ] || die "$SRC not found"
+
+# ── credentials, minted now and never stored ────────────────────────────────
+info=$(garage -c "$GARAGE_CONF" key info "$KEYNAME" --show-secret 2>/dev/null) \
+  || die "could not read key $KEYNAME from garage (is the admin socket up?)"
+export AWS_ACCESS_KEY_ID=$(printf '%s\n' "$info" | sed -n 's/^Key ID:[[:space:]]*//p')
+export AWS_SECRET_ACCESS_KEY=$(printf '%s\n' "$info" | sed -n 's/^Secret key:[[:space:]]*//p')
+export AWS_DEFAULT_REGION=garage
+export AWS_EC2_METADATA_DISABLED=true
+[ -n "${AWS_ACCESS_KEY_ID:-}" ] || die "key id empty"
+
+mkdir -p "$STAGE"
+
+# ── stage the database(s) consistently ─────────────────────────────────────
+n_db=0
+while IFS= read -r -d '' db; do
+  rel="${db#$SRC/}"
+  mkdir -p "$STAGE/$(dirname "$rel")"
+  if sqlite3 -readonly "file:$db?mode=ro" ".backup '$STAGE/$rel'" 2>/dev/null; then
+    n_db=$((n_db + 1))
+  else
+    echo "WARN: could not snapshot $rel (left out)" >&2
+  fi
+done < <(find "$SRC" -maxdepth 1 \( -name '*.sqlite' -o -name '*.db' \) -type f \
+           ! -name 'history.sqlite' -print0)
+# history.sqlite (29G) is deliberately excluded: it is abandoned, untouched since
+# 2026-09-19 05:13, and 29G daily over the tailnet is not a sane backup. It holds
+# 12.1M blocks of older-schema history — archive it once, separately, or drop it.
+
+# everything that is not a database (demo/, probe.json)
+rsync -a --exclude='*.sqlite' --exclude='*.sqlite-wal' --exclude='*.sqlite-shm' \
+      --exclude='history.sqlite*' "$SRC/" "$STAGE/" 2>/dev/null || true
+
+log "staged $n_db database(s); $(find "$STAGE" -type f | wc -l) file(s), $(du -sh "$STAGE" | cut -f1)"
+
+# ── upload, with a retry ramp that survives a scrub pass ───────────────────
+# The monthly btrfs scrub pins bcache0 at 100% util and garage's data lives on
+# that device, so PUTs intermittently 503. 30 attempts rides it out; 8 did not.
+sync_with_retry(){
+  local src="$1" dst="$2" attempt sleep_s
+  for attempt in $(seq 1 30); do
+    if aws --endpoint-url "$ENDPOINT" s3 sync "$src" "$dst" \
+        --only-show-errors --no-progress \
+        --cli-connect-timeout 60 --cli-read-timeout 300; then
+      return 0
+    fi
+    sleep_s=$(( attempt < 6 ? attempt * 15 : 90 ))
+    echo "WARN: attempt $attempt failed ($dst); retrying in ${sleep_s}s" >&2
+    sleep "$sleep_s"
+  done
+  return 1
+}
+
+log "uploading -> s3://$BUCKET/current/"
+sync_with_retry "$STAGE/" "s3://$BUCKET/current/" || die "upload failed after 30 attempts"
+
+log "snapshotting -> s3://$BUCKET/snapshots/$STAMP/"
+sync_with_retry "$STAGE/" "s3://$BUCKET/snapshots/$STAMP/" || log "WARN: snapshot copy failed (current/ is intact)"
+
+# ── prune old snapshots ────────────────────────────────────────────────────
+log "pruning snapshots, keeping $KEEP_SNAPSHOTS"
+mapfile -t snaps < <(aws --endpoint-url "$ENDPOINT" s3 ls "s3://$BUCKET/snapshots/" 2>/dev/null \
+  | awk '{print $2}' | sed 's#/$##' | sort | head -n -"$KEEP_SNAPSHOTS")
+for s in "${snaps[@]:-}"; do
+  [ -n "$s" ] || continue
+  aws --endpoint-url "$ENDPOINT" s3 rm "s3://$BUCKET/snapshots/$s/" --recursive \
+    --only-show-errors >/dev/null 2>&1 && log "  pruned $s"
+done
+
+log "done: $(aws --endpoint-url "$ENDPOINT" s3 ls "s3://$BUCKET/current/" --recursive 2>/dev/null | wc -l) object(s) in current/"

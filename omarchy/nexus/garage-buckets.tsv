@@ -22,3 +22,4 @@ k3s-longhorn-backups    longhorn-backup         read,write
 trading-backups         trading-backup          read,write
 activepieces            activepieces-s3         read,write
 media-config            media-config-backup     read,write
+stampede-backup
