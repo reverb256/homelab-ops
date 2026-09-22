@@ -1,0 +1,11 @@
+# Managed from homelab-ops/omarchy/sentry — do not hand-edit on the host.
+[Unit]
+Description=Watch our Oracle Always Free VPS for idle-reclamation risk
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=j_kro
+ExecStart=/usr/local/bin/oracle-idle-watch
+Nice=10
