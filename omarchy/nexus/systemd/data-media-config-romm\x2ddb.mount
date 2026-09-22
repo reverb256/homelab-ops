@@ -1,0 +1,19 @@
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit on the host.
+#
+# Bind the romm-db config from the 240G tier into the path the arr app mounts.
+# Declared in git so the bind is reproducible; it lived only in /etc/fstab,
+# while eight sibling /data mounts were already unit-managed.
+[Unit]
+Description=Bind /data/media/config/romm-db <- /data/nvme1/media-config/romm-db
+Documentation=https://github.com/reverb256/homelab-ops
+RequiresMountsFor=/data/nvme1
+After=data-nvme1.mount
+
+[Mount]
+What=/data/nvme1/media-config/romm-db
+Where=/data/media/config/romm-db
+Type=none
+Options=bind
+
+[Install]
+WantedBy=local-fs.target

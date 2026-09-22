@@ -1,0 +1,17 @@
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit on the host.
+#
+# The 240G Kingston nvme1n1, labelled 'nexus-cache'. It is NOT a cache: it holds
+# the arr config tier (SQLite) and the stampede databases. Declared here so the
+# mount is reproducible from git rather than living only in /etc/fstab.
+[Unit]
+Description=/data/nvme1 (nvme1n1, arr config + stampede tier)
+Documentation=https://github.com/reverb256/homelab-ops
+
+[Mount]
+What=/dev/disk/by-uuid/51f28a54-2a7d-4fa1-aa16-2c38c1eb9a0b
+Where=/data/nvme1
+Type=btrfs
+Options=defaults,noatime
+
+[Install]
+WantedBy=local-fs.target
