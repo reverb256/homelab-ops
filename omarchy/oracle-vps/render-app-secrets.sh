@@ -1,17 +1,20 @@
 #!/usr/bin/env bash
-# Render Haven's app secrets on the VPS from the sops store.
+# Upsert Haven's SECRET keys into the app's env on the VPS, from the sops store.
 #
 # Runs on zephyr (the age key lives here, never on the public box) and pushes to the VPS.
-#   ./render-app-secrets.sh --check    report drift, write nothing
-#   ./render-app-secrets.sh            write /var/lib/haven/.env
+#   ./render-app-secrets.sh --check    report drift on the secrets, write nothing
+#   ./render-app-secrets.sh            upsert them
 #
 # Source: ~/Work/Projects/nixos-secrets/secrets/cloud/haven-vps.yaml
-#   jwt_secret, vapid_public_key, vapid_private_key   (sops keys are lowercase)
-# Target: /var/lib/haven/.env, owner 1000:1000, on $VPS_HOST
-#   Env names are UPPERCASE. Emitting the sops key name verbatim writes jwt_secret=..., which the app
-#   ignores and then regenerates — silently invalidating every existing session. The check below
-#   compares rendered-vs-live on the real box and catches exactly that.
-#   This is the SECRET half; the non-secret runtime settings are /etc/haven/haven.env (apply.sh).
+#   jwt_secret, vapid_public_key, vapid_private_key     (sops keys are lowercase)
+# Target: /var/lib/haven/.env on $VPS, owner 1000:1000
+#
+# UPSERT, not overwrite. Only JWT_SECRET, VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY are this script's
+# business. PORT, HOST, SERVER_NAME and ADMIN_USERNAME are the app's own identity/config and are
+# preserved exactly as found — a render that rewrote them changed SERVER_NAME and ADMIN_USERNAME away
+# from what the live app uses (found 2026-09-22). Env names are UPPERCASE: emitting the lowercase sops
+# key name writes jwt_secret=..., which the app ignores and then regenerates, silently invalidating
+# every existing session. The check below compares only the three keys it owns, by value.
 # Never regenerate VAPID keys: they must keep matching existing push subscriptions.
 
 set -euo pipefail
@@ -20,26 +23,50 @@ SECRETS_DIR="${SECRETS_DIR:-$HOME/Work/Projects/nixos-secrets}"
 SRC="$SECRETS_DIR/secrets/cloud/haven-vps.yaml"
 TARGET="${TARGET:-/var/lib/haven/.env}"
 CHECK=0; [[ "${1:-}" == "--check" ]] && CHECK=1
+
 [[ -f "$SRC" ]] || { echo "missing $SRC" >&2; exit 2; }
 PLAIN="$(sops -d "$SRC")"
 get() { printf '%s\n' "$PLAIN" | sed -n "s/^$1: //p" | head -1; }
-WANT="PORT=3000
-HOST=0.0.0.0
-SERVER_NAME=haven.reverb256.dev
-ADMIN_USERNAME=reverb256
-JWT_SECRET=$(get jwt_secret)
-VAPID_PUBLIC_KEY=$(get vapid_public_key)
-VAPID_PRIVATE_KEY=$(get vapid_private_key)
-"
+
+declare -A WANT=( [JWT_SECRET]="$(get jwt_secret)" [VAPID_PUBLIC_KEY]="$(get vapid_public_key)" [VAPID_PRIVATE_KEY]="$(get vapid_private_key)" )
+for k in "${!WANT[@]}"; do [[ -n "${WANT[$k]}" ]] || { echo "REFUSING: store value for $k is empty" >&2; exit 3; }; done
+
+live_val() { $VPS "sudo -n sed -n 's/^$1=//p' $TARGET 2>/dev/null | head -1"; }
+
 if (( CHECK )); then
-  live="$($VPS "sudo -n cat $TARGET 2>/dev/null" | sed -e "s/[[:space:]]*$//" | grep -v "^$" | sort)"
-  want="$(printf '%s\n' "$WANT" | sed -e "s/[[:space:]]*$//" | grep -v "^$" | sort)"
-  if [[ -n "$live" && "$live" == "$want" ]]; then
-    echo "  $TARGET on the VPS: in sync"; exit 0
-  else
-    echo "  $TARGET on the VPS: DRIFT (or missing) — run without --check to render"; exit 1
-  fi
+  drift=0
+  for k in "${!WANT[@]}"; do
+    if [[ "$(live_val "$k")" == "${WANT[$k]}" ]]; then
+      echo "  $k: in sync"
+    else
+      echo "  $k: DRIFT"; drift=1
+    fi
+  done
+  (( drift )) && echo "  (run without --check to upsert)"; exit $drift
 fi
 
-printf '%s' "$WANT" | $VPS "sudo -n install -m 600 -o 1000 -g 1000 /dev/stdin $TARGET"
-echo "rendered $TARGET on the VPS"
+# Read, replace-or-append each owned key; every other line is preserved verbatim.
+{
+  echo "set -euo pipefail"
+  echo "cat > /tmp/.haven.env <<'EOF'"
+  for k in JWT_SECRET VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY; do printf '%s\n' "$k=${WANT[$k]}"; done
+  echo "EOF"
+  echo "sudo -n python3 -c \""
+  echo "import pathlib"
+  echo "p = pathlib.Path('/var/lib/haven/.env')"
+  echo "owned = {}"
+  echo "for line in pathlib.Path('/tmp/.haven.env').read_text().splitlines():"
+  echo "    k, _, v = line.partition('='); owned[k] = v"
+  echo "out = []"
+  echo "for line in (p.read_text().splitlines() if p.exists() else []):"
+  echo "    k = line.partition('=')[0]"
+  echo "    out.append(f'{k}={owned.pop(k)}' if k in owned else line)"
+  echo "for k, v in owned.items(): out.append(f'{k}={v}')"
+  echo "p.write_text('\\n'.join(out) + '\\n')"
+  echo "\""
+  echo "rm -f /tmp/.haven.env"
+  echo "sudo -n chown 1000:1000 /var/lib/haven/.env && sudo -n chmod 600 /var/lib/haven/.env"
+} > /tmp/.upsert.sh
+$VPS 'bash -s' < /tmp/.upsert.sh
+rm -f /tmp/.upsert.sh
+echo "upserted JWT_SECRET, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY on the VPS"
