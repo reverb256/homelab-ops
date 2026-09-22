@@ -105,6 +105,25 @@ for unit in "$REPO_DIR"/systemd/*.mount; do
   act "$SUDO systemctl enable --now '$name'"
 done
 
+# ── 2b. btrfs scrub timer (pool integrity monitoring) ──────────────────────
+# The pool is Data,single: file data has no replica, so a scrub can DETECT
+# corruption but never repair it. A manual scrub on 2026-09-08 reported
+# csum=2324 with Corrected=0, and nothing monitored the pool afterwards.
+#
+# This section also closes a gap: apply.sh installed only systemd/*.mount, so
+# the bin/ scripts and .timer/.service units staged in this component were
+# never covered by it.
+log "btrfs scrub timer"
+
+install_file "$REPO_DIR/bin/btrfs-scrub" /usr/local/bin/btrfs-scrub 0755
+install_file "$REPO_DIR/systemd/btrfs-scrub.service" \
+             /etc/systemd/system/btrfs-scrub.service
+install_file "$REPO_DIR/systemd/btrfs-scrub.timer" \
+             /etc/systemd/system/btrfs-scrub.timer
+
+act "$SUDO systemctl daemon-reload"
+act "$SUDO systemctl enable --now btrfs-scrub.timer"
+
 if (( ! CHECK )); then
   for unit in "$REPO_DIR"/systemd/*.mount; do
     name="$(basename "$unit")"

@@ -1,0 +1,27 @@
+# /etc/systemd/system/btrfs-scrub.timer
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit on the host.
+#
+# Monthly integrity scrub of the bcache0 pool. First Sunday-ish window
+# (days 1-7) at 03:30, after the 04:00 memlawb backup window opens but before
+# the 04:20 Haven backup — deliberately early so the two never overlap.
+#
+# WHY: a manual scrub on 2026-09-08 reported csum=2324 with Corrected=0, and
+# nothing monitored the pool afterwards. Without a recurring scrub there is no
+# way to tell historical damage from active corruption.
+#
+# Persistent=true so a missed run (host off) fires on the next boot rather
+# than silently skipping a month. RandomizedDelaySec spreads load on a host
+# that already runs CI.
+
+[Unit]
+Description=Monthly btrfs scrub of the nexus-storage pool
+Documentation=https://github.com/reverb256/homelab-ops
+
+[Timer]
+OnCalendar=*-*-1..7 03:30:00
+Persistent=true
+RandomizedDelaySec=30m
+Unit=btrfs-scrub.service
+
+[Install]
+WantedBy=timers.target
