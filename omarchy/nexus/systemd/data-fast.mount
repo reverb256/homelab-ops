@@ -1,0 +1,43 @@
+# /etc/systemd/system/data-fast.mount
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit on the host.
+#
+# nexus-fast: the 500G SSD tier (Samsung 860 EVO SATA, /dev/sdb).
+#
+# PURPOSE
+#   A fast, UNENCRYPTED local tier, so k3s and Docker stop competing with the
+#   OS on the dm-crypt'd nvme0n1 root. Measured 2026-09-21: dockerd and
+#   containerd were driving ~186 MB/s against the LUKS root while the 4TB
+#   media HDD sat idle. dm-crypt on a DRAM-less WD Blue is a genuine ceiling
+#   for the small-block I/O that container runtimes generate.
+#
+# HISTORY
+#   This device was previously bcache's cache for bcache0. It was detached on
+#   2026-09-22 — it delivered only a 35% hit ratio on a bulk-sequential media
+#   workload while, in writeback, exposing up to ~46G of unsynced writes on a
+#   consumer SSD. The now-empty cache set was then unregistered to release the
+#   device, which was re-formatted for this tier. See README.
+#
+#   No udev change was needed: 69-bcache.rules matches ID_FS_TYPE=="bcache", so
+#   it ignores this device now that it carries btrfs.
+#
+# CAVEATS
+#   Single device, NO redundancy, and a consumer SATA SSD without power-loss
+#   protection. Do not place anything here that cannot be rebuilt from git,
+#   Garage, or a re-download. It is a cache/pv tier, not a durability tier.
+#
+# nofail + a device timeout keep a dead SSD from blocking boot.
+
+[Unit]
+Description=nexus-fast: 500G SSD tier for k3s/Docker local storage
+Documentation=https://github.com/reverb256/homelab-ops
+DefaultDependencies=no
+Before=local-fs.target
+
+[Mount]
+What=/dev/disk/by-uuid/904965c2-f649-4581-a668-843fabd32ac3
+Where=/data/fast
+Type=btrfs
+Options=ssd,discard=async,noatime,compress=zstd:3,nofail,x-systemd.device-timeout=30s
+
+[Install]
+WantedBy=local-fs.target
