@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Back up the Haven server (k3s ns `mosaic`) to garage S3.
+# Back up the Haven server (k3s ns `haven`) to garage S3.
 #
 # Managed by homelab-ops/omarchy/nexus — installed to /usr/local/bin/haven-backup
 # and driven by haven-backup.timer. Pattern: memlawb-backup.
@@ -18,13 +18,13 @@ KEYNAME=haven-backup
 STAMP=$(date +%Y%m%d-%H%M%S)
 RETAIN=14
 STAGE=/var/lib/haven-backup
-NS=mosaic
+NS=haven
 
 command -v aws >/dev/null 2>&1 || { echo "aws cli missing" >&2; exit 2; }
 mkdir -p "$STAGE"
 
 # 1) Consistent snapshot inside the pod, then copy it out.
-POD=$(k3s kubectl -n "$NS" get pod -l app.kubernetes.io/instance=mosaic -o jsonpath='{.items[0].metadata.name}')
+POD=$(k3s kubectl -n "$NS" get pod -l app.kubernetes.io/instance=haven -o jsonpath='{.items[0].metadata.name}')
 [[ -n "$POD" ]] || { echo "no haven pod found" >&2; exit 2; }
 
 k3s kubectl -n "$NS" exec -i "$POD" -- node - <<'NODE'

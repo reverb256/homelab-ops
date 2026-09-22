@@ -69,9 +69,36 @@ except Exception as e:
 EOF
 done
 
+
+
+echo "== Nous Research =="
+NK=$(envv NOUS_API_KEY)
+if [ -n "$NK" ]; then 
+  t "env  " 200 $(code GET https://inference-api.nousresearch.com/v1/models -H "Authorization: Bearer $NK")
+else 
+  echo "env: ABSENT"
+fi
+
+echo "== CommandCode =="
+CC=$(envv COMMANDCODE_API_KEY)
+if [ -n "$CC" ]; then 
+  t "env  " 200 $(code GET https://api.commandcode.ai/provider/v1/models -H "Authorization: Bearer $CC")
+else 
+  echo "env: ABSENT"
+fi
+
 echo "== Google/Gemini =="
 GG=$(envv GOOGLE_API_KEY)
 if [ -n "$GG" ]; then t "env" 200 $(code GET "https://generativelanguage.googleapis.com/v1beta/models?key=$GG"); else echo "env: ABSENT"; fi
+
+
+echo "== Nous Research =="
+NK=$(envv NOUS_API_KEY)
+if [ -n "$NK" ]; then 
+  t "env  " 200 $(code GET https://inference-api.nousresearch.com/v1/models -H "Authorization: Bearer $NK")
+else 
+  echo "env: ABSENT"
+fi
 
 echo "== CommandCode =="
 CC=$(envv COMMANDCODE_API_KEY)
