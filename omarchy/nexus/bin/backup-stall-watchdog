@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# backup-stall-watchdog — turn a SILENT backup hang into a visible failure.
+#
+# WHY THIS EXISTS (2026-09-22)
+# The stampede backup sat in systemd state `activating` for hours doing ZERO
+# bytes of I/O, with no error and no retry log. Cause: a btrfs scrub saturating
+# bcache0 dropped garage to ~5MB/s, and `aws s3 sync` waits silently instead of
+# failing. systemd reported `activating`, which reads as healthy. Nothing would
+# ever have alerted — the job just never finished.
+#
+# This kills a backup stuck in `activating` past STALL_MIN so it flips to
+# `failed` (Result=exit-code) — a state that monitors and humans both see.
+#
+# Usage:
+#   backup-stall-watchdog            # scan and kill stalled units
+#   backup-stall-watchdog --selftest # prove the detection logic (positive AND
+#                                    # negative controls), prints WATCHDOG_DETECTS
+set -euo pipefail
+
+STALL_MIN=${STALL_MIN:-90}
+UNITS=(stampede-backup media-config-backup haven-backup)
+
+# Returns 0 (stalled) only for a unit still `activating` past the threshold.
+# A finished unit (inactive) or an already-failed unit is never flagged: killing
+# those would either be pointless or mask a real failure.
+detect(){
+  local st="$1" mins="$2"
+  [ "$st" = "activating" ] && [ "${mins:-0}" -ge "$STALL_MIN" ]
+}
+
+selftest(){
+  # positive control: a long-running activating unit MUST be detected
+  if ! detect activating 120; then
+    echo "SELFTEST FAILED: missed activating/120 (positive control)" >&2; exit 1
+  fi
+  # negative controls: each of these must NOT be flagged
+  if detect inactive 500; then
+    echo "SELFTEST FAILED: flagged a finished unit" >&2; exit 1
+  fi
+  if detect failed 500; then
+    echo "SELFTEST FAILED: flagged an already-failed unit" >&2; exit 1
+  fi
+  if detect activating 5; then
+    echo "SELFTEST FAILED: flagged a young unit" >&2; exit 1
+  fi
+  if detect activating $((STALL_MIN - 1)); then
+    echo "SELFTEST FAILED: flagged one minute under threshold" >&2; exit 1
+  fi
+  echo "WATCHDOG_DETECTS"
+}
+
+if [ "${1:-}" = "--selftest" ]; then
+  selftest
+  exit 0
+fi
+
+now=$(date +%s)
+fired=0
+for u in "${UNITS[@]}"; do
+  st=$(systemctl is-active "$u.service" 2>/dev/null || true)
+  if [ "$st" != "activating" ]; then
+    continue
+  fi
+  ts=$(systemctl show -p ActiveEnterTimestamp --value "$u.service" 2>/dev/null || true)
+  if [ -z "$ts" ] || [ "$ts" = "n/a" ]; then
+    continue
+  fi
+  start_s=$(date -d "$ts" +%s 2>/dev/null || echo 0)
+  mins=$(( (now - start_s) / 60 ))
+  if detect "$st" "$mins"; then
+    logger -t backup-stall-watchdog \
+      "ALERT: $u stuck in activating ${mins}min (> ${STALL_MIN}) — killing so it reports failed"
+    echo "ALERT: $u stalled ${mins}min (> ${STALL_MIN}) — killing"
+    systemctl kill --signal=SIGTERM "$u.service" 2>/dev/null || true
+    fired=$((fired + 1))
+  fi
+done
+echo "watchdog: scanned ${#UNITS[@]} unit(s), killed $fired stalled unit(s)"
