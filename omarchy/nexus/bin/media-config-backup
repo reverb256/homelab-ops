@@ -17,10 +17,6 @@ set -euo pipefail
 
 SRC=/data/nvme1/media-config
 BUCKET=media-config
-# garage.toml sets `api_bind_addr = "100.76.105.73:3900"` — the S3 API listens
-# ONLY on the tailnet address. 127.0.0.1:3900 does not answer, so verifying with
-# a loopback endpoint reports "Could not connect" and looks like a broken
-# backup when the sync is actually healthy. Verify against THIS url.
 ENDPOINT=http://100.76.105.73:3900
 KEYNAME=media-config-backup
 STAMP=$(date +%Y%m%d-%H%M%S)
@@ -54,8 +50,11 @@ AWS_CFG=$(mktemp)
 cat > "$AWS_CFG" <<'CFG'
 [default]
 s3 =
-  max_concurrent_requests = 1
-  max_bandwidth = 64MB/s
+  # 21,942 files in 5.1GB: concurrency hides per-request latency that a single
+  # connection cannot. Raised from 1 (which is right for the 274GB garage-store
+  # backup in memlawb-backup, and wrong here).
+  max_concurrent_requests = 16
+  max_bandwidth = 200MB/s
   use_accelerate_endpoint = false
   multipart_threshold = 64MB
   multipart_chunksize = 16MB
