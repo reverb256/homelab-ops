@@ -17,6 +17,10 @@ set -euo pipefail
 
 SRC=/data/nvme1/media-config
 BUCKET=media-config
+# garage.toml sets `api_bind_addr = "100.76.105.73:3900"` — the S3 API listens
+# ONLY on the tailnet address. 127.0.0.1:3900 does not answer, so verifying with
+# a loopback endpoint reports "Could not connect" and looks like a broken
+# backup when the sync is actually healthy. Verify against THIS url.
 ENDPOINT=http://100.76.105.73:3900
 KEYNAME=media-config-backup
 STAMP=$(date +%Y%m%d-%H%M%S)

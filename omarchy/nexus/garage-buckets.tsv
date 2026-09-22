@@ -1,0 +1,24 @@
+# Desired garage S3 buckets + access keys for nexus.
+#
+# Managed by homelab-ops/omarchy/nexus — installed by apply.sh to
+# /etc/garage-buckets.tsv and reconciled by /usr/local/bin/garage-buckets-reconcile.
+#
+# Format: <bucket> <access-key-name> <permissions>
+#
+# Every one of these was created by hand before 2026-09-22. Declaring them means
+# a restored garage metadata directory gets its buckets and keys back, instead of
+# every backup timer failing with a 403 that reads like a bad credential.
+#
+# Key MATERIAL is not declared here and never will be: the backup scripts mint it
+# from garage at run time (local admin socket), so a key rotation cannot silently
+# break them. zephyr's rclone remote still holds a static key from before the
+# 2026-09-20 rotation and now returns 403 — that is the failure this avoids.
+#
+# bucket                key                     permissions
+memlawb                 memlawb-key             read,write
+haven                   haven-backup            read,write
+k3s-etcd                k3s-etcd                read,write
+k3s-longhorn-backups    longhorn-backup         read,write
+trading-backups         trading-backup          read,write
+activepieces            activepieces-s3         read,write
+media-config            media-config-backup     read,write
