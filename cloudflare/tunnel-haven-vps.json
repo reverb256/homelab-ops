@@ -1,0 +1,10 @@
+{
+  "_comment": "Cloudflare Tunnel 'haven-vps' (id 2d8f6b0c-2154-4a90-8b68-2361f27ec580) remote config. Applied 2026-09-22 when Haven moved to the Oracle VPS. Push with PUT /accounts/{account_id}/cfd_tunnel/{tunnel_id}/configurations (body = this file under a 'config' key).",
+  "config": {
+    "ingress": [
+      { "hostname": "haven.reverb256.dev", "service": "http://127.0.0.1:3001" },
+      { "service": "http_status:404" }
+    ],
+    "warp-routing": { "enabled": false }
+  }
+}

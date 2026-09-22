@@ -1,0 +1,3 @@
+# name	type	content	proxied	zone_id	purpose
+haven.reverb256.dev	CNAME	2d8f6b0c-2154-4a90-8b68-2361f27ec580.cfargotunnel.com	true	0c0e891ae5f1751c78802d85106b1899	Haven on the Oracle VPS (was tunnel 95a8d599 = k8s rollback)
+headscale.reverb256.dev	A	40.233.113.94	false	0c0e891ae5f1751c78802d85106b1899	Tailnet control plane — must stay DNS-only (real TCP/TLS, no proxy)

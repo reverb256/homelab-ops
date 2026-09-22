@@ -1,0 +1,14 @@
+[Unit]
+Description=Pi-hole MCP server (hexamatic/pihole-mcp, HTTP :8796, tailnet)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/pihole-mcp/env
+ExecStart=%h/.local/bin/pihole-mcp -transport http -address 0.0.0.0:8796
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

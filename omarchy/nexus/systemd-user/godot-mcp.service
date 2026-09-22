@@ -1,0 +1,15 @@
+[Unit]
+Description=Godot MCP server (godot-mcp-server, HTTP :8795)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/j_kro/Work/godot-mcp
+Environment=GODOT_BIN=/usr/bin/godot
+Environment=GODOT_MCP_LOG_LEVEL=info
+ExecStart=/usr/bin/node /home/j_kro/Work/godot-mcp/dist/index.js --transport http --host 0.0.0.0 --port 8795
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
