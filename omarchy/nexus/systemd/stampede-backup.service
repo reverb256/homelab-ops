@@ -1,0 +1,13 @@
+[Unit]
+Description=Back up the stampede database to Garage
+Documentation=https://github.com/reverb256/homelab-ops
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/stampede-backup
+# The live DB is 39G; a staged upload over the tailnet takes a while.
+TimeoutStartSec=6h
+Nice=10
+IOSchedulingClass=idle
