@@ -26,6 +26,7 @@ Garage — that is a one-way door, documented in the runbook.
 | nexus (garage, backup keys) | `/etc/garage-secrets/*`, root-only files | `garage key info <name> --show-secret` |
 | nexus host backup script (RustFS, `*arr`/Jellyfin configs) | sops store → rendered env file `~/.config/rustfs/backup.env` (0600) by `scripts/render-rustfs-backup-env.sh` (run on zephyr); the script sources it | re-render, then `aws --endpoint-url http://localhost:9000 s3 ls s3://jellyfin-backups/configs/` |
 | Hermes profiles (sentry/nexus/zephyr) | per-profile `.env`, 0600, ~12 files, ~2 KB each | none — no drift detection |
+| Hermes **A2A peer tokens** (nexus, zephyr) | store `secrets/infra/hermes-a2a-peer-tokens.yaml` → rendered into `~/.hermes/.env A2A_PEER_TOKENS` **and** `~/.hermes/config.yaml a2a_agents.<peer>.auth.token` by `scripts/a2a-peer-token-rotate.py` | `scripts/a2a-peer-token-rotate.py check` — store vs live, fingerprints only, exit 0/1/2 |
 | Cloudflare (tokens, tunnels) | sops store + API | `GET /user/tokens/verify` |
 
 ## Rules
@@ -71,7 +72,12 @@ Garage — that is a one-way door, documented in the runbook.
 - The Oracle VPS's two secret files are hand-placed (see rules 5). They belong in the store with a
   render step wired into `omarchy/oracle-vps/apply.sh`.
 - Hermes profile `.env` files have no drift detection — the same keys are duplicated across ~12
-  files on three hosts.
+  files on three hosts. **Partially closed 2026-09-22 for the A2A peer tokens**: those now have one
+  owner (the store), one render step, and a `check` mode; the duplicated copies were removed from
+  every profile that is not the host's A2A owner (13 profiles on nexus carried zephyr's `A2A_HOST`
+  **and** zephyr's tokens — a foreign identity, and the source of 552 bind failures per 3 h), and
+  every non-serving profile now has `platforms.a2a.enabled: false` so it cannot race for :9900.
+  Still unmanaged, same class: the `~/.hermes/.env` provider keys on the other hosts.
 - Only 3 repos declare a `secretspec.toml`; the fleet has no single contract to diff against.
 - `secretspec-checkpoint` skill audited the old sops-nix/agenix registries from the NixOS era. No NixOS
   hosts remain, so its premise is gone — retired 2026-09-22.
@@ -100,3 +106,22 @@ Simpler: re-run the render script and confirm its printed fingerprints are uncha
 Both checks on 2026-09-22: zero files with no envelope, zero age private keys tracked. The only
 raw file found was untracked on disk (a sibling's work in progress) and was sops-encrypted before
 commit — so nothing plaintext has ever entered git history.
+
+## Rotating an auth token that a live path depends on (the overlap rule)
+
+Rule 4 says rotation = update store → render → restart → verify by use. For a credential that
+gates a *money-halt* path, "restart" is the dangerous step: the listener reads its allow-list at
+adapter start, so switching the caller first gives a 401 window. Rotate with overlap instead:
+
+1. seal the new set into the store (the store is the source of truth, so it moves first);
+2. render **old + new** into each listener's allow-list and restart — both now authenticate
+   (`_parse_peer_tokens` returns `{token: name}`, so one name may hold two tokens);
+3. prove BOTH work (new → 200, old → 200) and that no-auth/unknown → 401;
+4. switch the callers to the new token, then prove the real path end to end;
+5. drop the old token, restart, and re-prove (new → 200, old → 401, junk → 401).
+
+`scripts/a2a-peer-token-rotate.py rotate --yes` does exactly this, enforces the cross-host
+consistency the mesh needs (`nexus.outbound[zephyr] == zephyr.inbound[nexus]`, and
+`nexus.outbound[nexus] == nexus.inbound[nexus]` — the halt self-peer), and **refuses to write an
+inconsistent set**. It stops on the last verified-good state, so an interrupted run leaves an
+overlap (safe) rather than a half-rotated mesh. Run it from zephyr: it holds the age identity.
