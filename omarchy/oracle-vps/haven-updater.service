@@ -1,0 +1,7 @@
+[Unit]
+Description=Bump Haven to the newest upstream release tag
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/haven-updater

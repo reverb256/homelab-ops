@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# oracle-keepalive — bounded hourly activity so the instance is not idle for Oracle's
+# 7-day window. NOTE: real services (Headscale/DERP/monitoring) are the actual defence;
+# this is a floor, not a substitute. Managed from homelab-ops/omarchy/oracle-vps.
+set -uo pipefail
+timeout 60 nice -n 19 bash -c 'end=$((SECONDS+45)); while [ $SECONDS -lt $end ]; do :; done' || true
+curl -s -m 20 -o /dev/null https://archlinux.org/ || true
+echo "$(date -u +%FT%TZ) keepalive done"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Back up the Haven server (k3s ns `haven`) to garage S3.
+# Back up the Haven instance on the Oracle VPS to garage S3.
 #
 # Managed by homelab-ops/omarchy/nexus — installed to /usr/local/bin/haven-backup
 # and driven by haven-backup.timer. Pattern: memlawb-backup.
@@ -18,25 +18,17 @@ KEYNAME=haven-backup
 STAMP=$(date +%Y%m%d-%H%M%S)
 RETAIN=14
 STAGE=/var/lib/haven-backup
-NS=haven
 
 command -v aws >/dev/null 2>&1 || { echo "aws cli missing" >&2; exit 2; }
 mkdir -p "$STAGE"
 
-# 1) Consistent snapshot inside the pod, then copy it out.
-POD=$(k3s kubectl -n "$NS" get pod -l app.kubernetes.io/instance=haven -o jsonpath='{.items[0].metadata.name}')
-[[ -n "$POD" ]] || { echo "no haven pod found" >&2; exit 2; }
-
-k3s kubectl -n "$NS" exec -i "$POD" -- node - <<'NODE'
-const Database = require('better-sqlite3');
-const db = new Database('/data/haven.db');
-db.pragma('busy_timeout = 8000');
-db.prepare("VACUUM INTO '/data/backup-haven-auto.db'").run();
-console.log('vacuum ok');
-NODE
-k3s kubectl -n "$NS" cp "$POD:/data/backup-haven-auto.db" "$STAGE/haven-$STAMP.db"
-k3s kubectl -n "$NS" exec "$POD" -- cat /data/.env > "$STAGE/haven-env-$STAMP.txt"
-k3s kubectl -n "$NS" exec "$POD" -- rm -f /data/backup-haven-auto.db
+# 1) Pull a consistent bundle (snapshot + .env) from the Oracle VPS via the restricted backup key.
+SSHO="-i /home/j_kro/.ssh/haven-backup_ed25519 -o BatchMode=yes -o ConnectTimeout=15"
+ssh $SSHO arch@40.233.113.94 backup > /tmp/haven-bundle.tar
+tar -xf /tmp/haven-bundle.tar -C "$STAGE" haven-snapshot.db .env
+mv "$STAGE/haven-snapshot.db" "$STAGE/haven-$STAMP.db"
+mv "$STAGE/.env" "$STAGE/haven-env-$STAMP.txt"
+rm -f /tmp/haven-bundle.tar
 
 # Refuse to publish an implausibly small file.
 if [[ ! -s "$STAGE/haven-$STAMP.db" || "$(stat -c%s "$STAGE/haven-$STAMP.db")" -lt 4096 ]]; then

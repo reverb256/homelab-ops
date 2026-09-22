@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Emits a tar of (sqlite snapshot, app .env) on stdout. All logs go to stderr.
+set -euo pipefail
+sudo -n /usr/local/bin/haven-snapshot
+sudo -n tar -cf /tmp/haven-bundle.tar -C /tmp haven-snapshot.db -C /var/lib/haven .env
+sudo -n cat /tmp/haven-bundle.tar
+sudo -n rm -f /tmp/haven-bundle.tar
