@@ -30,3 +30,22 @@ NixOS rule, different mechanism.
 Both units are revenue-critical. `ExecStartPre` sets the power limit before
 the miner binary starts. `Restart=on-failure` with 10s backoff. Never disable
 these to work around errors — fix the root cause.
+
+## zephyr does NOT do backups
+
+zephyr is a workstation. It must not run, schedule, or serve backups, and no
+backup anywhere may depend on it. Enforced and verified 2026-09-22:
+
+- No backup timers/services/units on this host. The only rclone units here are
+  cloud MOUNTS (`rclone-outlook.com`, `omarchy-cloud-mount@`) — workstation use.
+- No other host's backup script calls zephyr. The nexus and sentry scripts
+  mention it only in comments.
+- **The `garage` rclone remote was DELETED from `/home/j_kro/.config/rclone/`
+  for exactly this reason.** It was dead since the 2026-09-20 Garage key
+  rotation and was an invitation to point a backup at a workstation. The
+  remaining remotes (dropbox, onedrive, mega, gdrive, oci-os) are the user's own
+  cloud accounts for mounts and interactive work — do not remove those.
+
+Backups belong on **nexus** (memlawb, haven, activepieces, media-config) and
+**sentry** (gitlawb), pushing to Garage S3 on nexus. If you find yourself
+reaching for zephyr to move backup data, the design is wrong.
