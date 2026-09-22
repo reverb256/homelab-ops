@@ -53,8 +53,12 @@ Garage — that is a one-way door, documented in the runbook.
 - Hermes profile `.env` files have no drift detection — the same keys are duplicated across ~12
   files on three hosts.
 - Only 3 repos declare a `secretspec.toml`; the fleet has no single contract to diff against.
-- `secretspec-checkpoint` skill still audits the old sops-nix/agenix registries from the NixOS era.
-  No NixOS hosts remain, so that skill's premise is gone and it should be retired.
+- `secretspec-checkpoint` skill audited the old sops-nix/agenix registries from the NixOS era. No NixOS
+  hosts remain, so its premise is gone — retired 2026-09-22.
+- `secrets/ai/commandcode-api-key.yaml` held 238 bytes of corrupt non-UTF8 data (written Aug 26) where a
+  key was expected; the store therefore had NO usable commandcode key while the runtime did. Replaced with
+  a sops-encrypted entry built from the live value; the corrupt artifact is kept beside it as
+  `.corrupt-20260922` (untracked) rather than deleted.
 
 ## Verification sweep (use this, not a sops-only grep)
 
