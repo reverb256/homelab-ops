@@ -1,0 +1,17 @@
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit on the host.
+#
+# Daily at 04:30. Offset from memlawb (04:00) and haven (04:15) so the three
+# backups do not contend for bcache0, which is ~88% full and already saturated
+# by peakminer and qbittorrent.
+
+[Unit]
+Description=Daily media-config backup to garage S3
+
+[Timer]
+OnCalendar=*-*-* 04:30:00
+Persistent=true
+RandomizedDelaySec=15m
+Unit=media-config-backup.service
+
+[Install]
+WantedBy=timers.target
