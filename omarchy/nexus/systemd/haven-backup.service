@@ -6,7 +6,7 @@
 # k3s kubectl against the haven namespace.
 
 [Unit]
-Description=Back up the Haven server (k3s ns mosaic) to garage S3
+Description=Back up the Haven server (k3s ns haven) to garage S3
 Documentation=https://github.com/reverb256/homelab-ops
 After=network-online.target k3s.service garage.service
 Wants=network-online.target k3s.service
