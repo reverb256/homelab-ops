@@ -35,10 +35,28 @@ MOUNT=/data/media
 RATE=100M
 LOG=/var/log/btrfs-scrub.log
 
-# Cap scrub I/O. Best-effort: a missing sysfs path must not fail the run.
+# Cap scrub I/O. The sysfs node moved: older kernels expose
+# devinfo/scrub_speed_max, newer ones expose it per device under
+# devinfo/<devid>/scrub_speed_max. Try both layouts.
+#
+# This was originally written against the old path and silently did nothing --
+# which is how a "rate-limited" scrub came to run unthrottled at 9 MiB/s with a
+# 100-hour ETA, starving k3s, media and CI. The result is now logged either
+# way: a silent no-op here is the bug, so never let it be silent again.
 fsid="$(btrfs filesystem show "$MOUNT" | sed -n 's/.*uuid: *\([0-9a-f-]*\).*/\1/p')"
-if [ -n "$fsid" ] && [ -w "/sys/fs/btrfs/$fsid/devinfo/scrub_speed_max" ]; then
-  echo "$RATE" > "/sys/fs/btrfs/$fsid/devinfo/scrub_speed_max"
+cap_applied=no
+if [ -n "$fsid" ]; then
+  for node in /sys/fs/btrfs/"$fsid"/devinfo/scrub_speed_max \
+              /sys/fs/btrfs/"$fsid"/devinfo/*/scrub_speed_max; do
+    [ -e "$node" ] || continue
+    if [ -w "$node" ]; then
+      echo "$RATE" > "$node" && cap_applied=yes && \
+        echo "rate cap set: $node = $(cat "$node")" >> "$LOG"
+    fi
+  done
+fi
+if [ "$cap_applied" != yes ]; then
+  echo "WARN: no scrub_speed_max node found -- scrub will run UNTHROTTLED" >> "$LOG"
 fi
 
 {
