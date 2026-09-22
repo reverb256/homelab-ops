@@ -289,3 +289,20 @@ several times slower on the bare HDD.
 carries a bcache superblock — run `wipefs -a /dev/sdb` before formatting it.
 The udev rule `69-bcache.rules` still registers both members; update it when
 `sdb` is permanently reassigned.
+
+## nexus-fast: 500G SSD tier (2026-09-22)
+
+The detached cache device (`sdb`) was unregistered from the empty bcache cache
+set, wiped, and re-formatted as `nexus-fast` — a fast, unencrypted local tier
+mounted at `/data/fast` by `data-fast.mount`.
+
+Rationale: the box's real I/O bottleneck is container churn on the dm-crypt'd
+`nvme0n1` root (~186 MB/s measured, while the media HDD sat idle). A 500G SSD
+sitting almost unused as a bcache cache is worth far more as a tier under that
+workload than as a 35%-hit accelerator for bulk-sequential media.
+
+No udev change was required: `69-bcache.rules` matches `ID_FS_TYPE=="bcache"`,
+so it ignores the device now that it carries btrfs.
+
+`/data/fast` has no redundancy and the SSD has no power-loss protection — it is
+a cache/PV tier, not a durability tier.
