@@ -3,7 +3,7 @@
 # Oneshot driven by haven-backup.timer.
 #
 # Runs as root: needs the garage admin socket (key info --show-secret) and
-# k3s kubectl against the mosaic namespace.
+# k3s kubectl against the haven namespace.
 
 [Unit]
 Description=Back up the Haven server (k3s ns mosaic) to garage S3

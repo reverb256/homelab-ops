@@ -1,0 +1,3 @@
+G1: safePrompt exported from collector  |  CHECK: grep -n 'export function safePrompt' /home/j_kro/.config/omarchy/plugins/nixfred.infomarchy/collector.ts | head -1  |  EXPECT: /[0-9]+:export function safePrompt/
+G2: fleet.ts recent redaction audit (manual — inspect logic)  |  CHECK: grep -n 'safePrompt\|redact' /home/j_kro/.config/omarchy/plugins/nixfred.infomarchy/fleet.ts | head -10  |  EXPECT: /safePrompt/
+G3: fleet.ts does NOT pass raw remote prompt text unredacted to merged recent  |  CHECK: grep -n 'allRecent.push\|recent.push' /home/j_kro/.config/omarchy/plugins/nixfred.infomarchy/fleet.ts  |  EXPECT: /row\.hostLabel/
