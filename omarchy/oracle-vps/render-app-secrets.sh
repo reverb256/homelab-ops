@@ -25,7 +25,9 @@ CHECK=0; [[ "${1:-}" == "--check" ]] && CHECK=1
 SD=""; [[ $EUID -ne 0 ]] && SD="sudo -n"
 
 [[ -f "$SRC" ]] || { echo "missing $SRC" >&2; exit 2; }
-get() { sops -d --extract "["$1"]" "$SRC"; }
+# sops --extract rejects these key names; decrypt once and pull values with sed.
+PLAIN="$(sops -d "$SRC")"
+get() { printf '%s\n' "$PLAIN" | sed -n "s/^$1: //p" | head -1; }
 
 WANT="PORT=3000
 HOST=0.0.0.0
@@ -37,7 +39,7 @@ VAPID_PRIVATE_KEY=$(get vapid_private_key)
 "
 
 if (( CHECK )); then
-  if $SD test -f "$TARGET" && [[ "$($SD cat "$TARGET")" == "$WANT" ]]; then
+  if $SD test -f "$TARGET" && [[ "$($SD cat "$TARGET" | sed -e "s/[[:space:]]*$//" | grep -v "^$" | sort)" == "$(printf '%s\n' "$WANT" | sed -e "s/[[:space:]]*$//" | grep -v "^$" | sort)" ]]; then
     echo "  $TARGET: in sync"; exit 0
   else
     echo "  $TARGET: DRIFT (or missing) — run without --check to render"; exit 1
