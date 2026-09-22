@@ -41,6 +41,11 @@ Garage — that is a one-way door, documented in the runbook.
    the flag is correct design, but nothing watches the 503s, which is why the branded path sat broken
    unnoticed. The fix is a monitor on its degraded state, not removing the flag. (Rule corrected
    2026-09-22 after the first version of it was too absolute.)
+   The monitor LANDED 2026-09-22: VMProbe `alertmail-relay-configured` (blackbox module
+   `alertmail_configured`, which fails on the `/healthz` body when `"configured": true` is absent —
+   a status-code probe cannot see the degraded state, because the relay answers 200 while handing
+   off) plus `AlertMailDeliveryDegraded` (warning, 10m). Negative control recorded in media-k8s
+   GATES.md gate A7; the token itself lives in `cluster/secrets/alertmail-cloudflare.sops.yaml`.
 3. **Every secret has one owner and one delivery path.** Two delivery paths for the same secret
    means one of them is stale.
 4. **Rotation is a procedure, not an intention.** Rotate on leak, on staff change, and on a schedule
