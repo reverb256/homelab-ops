@@ -1,0 +1,167 @@
+#!/bin/bash
+# Managed by homelab-ops/omarchy/nexus -- do not hand-edit on the host.
+#
+# Rate-limited, backup-aware btrfs scrub of the nexus-storage pool (/dev/bcache0).
+#
+# WHY THIS EXISTS
+#   A manual scrub on 2026-09-08 reported:
+#       Error summary:    csum=2324
+#         Corrected:      0
+#   The filesystem is Data,single, so file data has NO replica to repair from:
+#   scrub can detect corruption but can never fix it for data blocks. (Metadata
+#   is DUP and does self-heal, which is why a read-write scrub is used and not
+#   `-r`.) The value of this job is DETECTION, not repair:
+#
+#     count rising  -> active corruption: suspect hardware, or the bcache layer
+#                      serving stale data from the SSD cache
+#     count stable  -> historical damage, confined to identifiable files that
+#                      can be restored from /data/backups or re-fetched
+#
+# WHY IT IS RATE LIMITED
+#   The pool is a single spinning HDD (sda) behind bcache, shared with k3s,
+#   media playback and CI builds. An unthrottled scrub starves all of them --
+#   an earlier full-speed scrub managed 167 MiB/s and saturated the device, and
+#   a "capped" run on 2026-09-22 still averaged 16.54 MiB/s against a 8.00 MiB/s
+#   limit while a whole-host I/O stall hit /data (D-state finds/du, PSI full
+#   avg300 ~15%). The cap is now 24M: enough to finish eventually on an otherwise
+#   idle pool, low enough that the pool stays usable.
+#
+# WHY THE GUARDS (added 2026-09-22)
+#   1. NO SCRUB MAY OVERLAP A BACKUP. The pool is the backup SOURCE (memlawb,
+#      haven, activepieces, media-config, stampede 04:07-04:47) and the backups
+#      stream off it to AWS/Garage. A 3.2 TiB scrub at 16 MiB/s runs for DAYS, so
+#      "start at 03:30, before the backups" cannot work: every possible start time
+#      overlaps the next backup window. The scrub therefore PAUSES whenever a
+#      backup unit is active and resumes when it finishes.
+#   2. NO SCRUB INTO AN ALREADY-SATURATED POOL. The pool carries dead extents that
+#      hang reads; if PSI io full is already high, adding a scrub just deepens the
+#      stall for k3s/media. Wait for a quieter moment instead.
+#   3. NO SCRUB WHEN SPACE IS SHORT. DiskSpaceLow was firing (88% used) on
+#      2026-09-22; a scrub's metadata churn must not push the pool toward ENOSPC.
+#
+# Restore from a bad state: stop btrfs-scrub.service and `btrfs scrub cancel
+# /data/media`. Never use `btrfs check --repair` on a mounted filesystem.
+
+set -euo pipefail
+
+MOUNT=/data/media
+RATE=24M
+LOG=/var/log/btrfs-scrub.log
+BACKUP_UNITS_RE='(memlawb|haven|activepieces|media-config|stampede|trading|backup-to-garage)-?backup\.service|backup-to-garage\.service|backup-garage'
+PSI_FULL_MAX=30      # refuse to START above this (io full avg60)
+MIN_FREE_PCT=5       # refuse to START below this much free space
+# MIN_FREE_PCT is deliberately low: this pool lives at ~88% used by design (media
+# + games), and a scrub writes almost nothing, so blocking the DETECTION job at
+# 85% would silently disable it forever -- exactly the blindness the job exists to
+# prevent. The guard is only there to avoid scrubbing a pool genuinely close to
+# ENOSPC (metadata allocation during scrub), hence 5%.
+
+log() { printf '%s %s\n' "$(date -Is)" "$*" >>"$LOG"; }
+
+backup_running() {
+  # Any active/activating backup unit => the pool must stay dedicated to it.
+  systemctl list-units --type=service --state=activating,running --no-legend --plain 2>/dev/null \
+    | awk '{print $1}' | grep -Eq "$BACKUP_UNITS_RE"
+}
+
+psi_io_full() {
+  awk '/^full/ {for (i=1;i<=NF;i++) if ($i ~ /^avg60=/) {split($i,a,"="); print a[2]}}' /proc/pressure/io
+}
+
+free_pct() {
+  df -P "$MOUNT" | awk 'NR==2 {gsub(/%/,"",$5); print $5}'
+}
+
+# ---------------------------------------------------------------- start guards
+# `--check` evaluates the guards and reports the decision without touching the
+# pool: the only safe way to prove the guard works on a live host.
+CHECK=no
+[ "${1:-}" = "--check" ] && CHECK=yes
+
+if backup_running; then
+  log "SKIP: a backup unit is active/activating -- not starting a scrub over a backup"
+  [ "$CHECK" = yes ] && echo "DECISION=skip reason=backup-running"
+  exit 0
+fi
+
+psi="$(psi_io_full || echo 0)"
+if awk -v v="$psi" -v m="$PSI_FULL_MAX" 'BEGIN{exit !(v > m)}'; then
+  log "SKIP: /proc/pressure/io full avg60=${psi}% > ${PSI_FULL_MAX}% -- pool already saturated"
+  [ "$CHECK" = yes ] && echo "DECISION=skip reason=psi-full-avg60=${psi}"
+  exit 0
+fi
+
+used="$(free_pct || echo 0)"
+if [ "$used" -gt $((100 - MIN_FREE_PCT)) ]; then
+  log "SKIP: ${used}% used (> $((100 - MIN_FREE_PCT))%) -- not enough free space to scrub safely"
+  [ "$CHECK" = yes ] && echo "DECISION=skip reason=used=${used}%"
+  exit 0
+fi
+
+if [ "$CHECK" = yes ]; then
+  echo "DECISION=start rate=${RATE} psi_full_avg60=${psi} used=${used}%"
+  exit 0
+fi
+
+# ------------------------------------------------------------------ rate limit
+# The sysfs node moved: older kernels expose devinfo/scrub_speed_max, newer ones
+# expose it per device under devinfo/<devid>/scrub_speed_max. This was originally
+# written against the old path and silently did nothing -- which is how a
+# "rate-limited" scrub came to run unthrottled, starving k3s, media and CI. A
+# silent no-op here is the bug, so never let it be silent again.
+fsid="$(btrfs filesystem show "$MOUNT" | sed -n 's/.*uuid: *\([0-9a-f-]*\).*/\1/p')"
+cap_applied=no
+if [ -n "$fsid" ]; then
+  for node in /sys/fs/btrfs/"$fsid"/devinfo/scrub_speed_max \
+              /sys/fs/btrfs/"$fsid"/devinfo/*/scrub_speed_max; do
+    [ -e "$node" ] || continue
+    if [ -w "$node" ]; then
+      echo "$RATE" >"$node" && cap_applied=yes \
+        && log "rate cap set: $node = $(cat "$node")"
+    fi
+  done
+fi
+if [ "$cap_applied" != yes ]; then
+  log "WARN: no scrub_speed_max node found -- scrub will run UNTHROTTLED"
+fi
+
+# Record the baseline before anything is reset, so "is it still growing" stays
+# answerable later.
+log "pre-scrub device stats: $(btrfs device stats "$MOUNT" | tr '\n' ' ')"
+
+# Start in the BACKGROUND: -B (foreground) would block here and make the
+# pause/resume loop below unreachable. A scrub resumed from a previous run is
+# fine -- `scrub start` on an existing scrub is a no-op, so fall back to resume.
+if ! btrfs scrub start -d "$MOUNT" >/dev/null 2>&1; then
+  log "scrub start returned non-zero (already running/paused?) -- resuming"
+  btrfs scrub resume "$MOUNT" >/dev/null 2>&1 || true
+fi
+
+# --------------------------------------------------- yield to backups, wait out
+while :; do
+  status="$(btrfs scrub status "$MOUNT" 2>/dev/null | awk -F': *' '/^Status:/{print $2}')"
+  case "$status" in
+  running)
+    if backup_running; then
+      log "PAUSE: backup window active -- pausing scrub"
+      btrfs scrub pause "$MOUNT" >/dev/null 2>&1 || true
+    fi
+    sleep 60
+    ;;
+  paused)
+    if backup_running; then
+      sleep 60
+    else
+      log "RESUME: no backup running -- resuming scrub"
+      btrfs scrub resume "$MOUNT" >/dev/null 2>&1 || true
+      sleep 60
+    fi
+    ;;
+  *)
+    break
+    ;;
+  esac
+done
+
+log "scrub finished/aborted: $(btrfs scrub status "$MOUNT" 2>/dev/null | tr '\n' ' ')"
+log "post-scrub device stats: $(btrfs device stats "$MOUNT" | tr '\n' ' ')"

@@ -1,0 +1,23 @@
+# etcd tuning for a disk that is shared with container churn.
+#
+# WHY (measured 2026-09-22, forge):
+#   etcd_disk_wal_fsync_duration_seconds p99   0.11s (baseline) -> 7.52s (18:10Z)
+#   etcd_disk_backend_commit_duration_seconds p99 -> 3.36s  (etcdHighCommitDurations, firing since 18:02Z)
+#   journal: "slow fdatasync took 16.9s", "waiting for ReadIndex response took too long"
+#   k3s.service: Main process exited, code=exited, status=1/FAILURE  (18:09:00Z)
+#   -> Node forge NotReady 18:09:26Z, recovered ~18:15Z
+#
+# Defaults are heartbeat-interval=100ms / election-timeout=1000ms, which assume
+# sub-100ms fsync. On this hardware a shared-disk write burst can blow past that
+# and cost the member its leadership for no reason other than I/O latency.
+# etcd's documented tuning for slow storage is to scale both up together
+# (election-timeout should be >= 10x heartbeat-interval).
+#
+# 250/2500 tolerates a ~2s stall instead of ~1s without changing quorum
+# requirements: it only makes spurious leader loss less likely, it does not slow
+# down a genuine failure decision beyond the documented bound.
+#
+# Managed by homelab-ops/omarchy/<host> -- do not hand-edit on the host.
+etcd-arg:
+  - heartbeat-interval=250
+  - election-timeout=2500
