@@ -151,6 +151,14 @@ done
 
 install_file "$REPO_DIR/garage-buckets.tsv" /etc/garage-buckets.tsv
 
+# tmpfiles.d: /tmp is a 24G tmpfs (RAM). It hit 82% from abandoned build
+# tarballs, and a big save written there is also misread as a corrupt
+# container layer when it truncates. Age out anything untouched for 2 days.
+for tf in "$REPO_DIR"/tmpfiles.d/*.conf; do
+  [[ -f "$tf" ]] || continue
+  install_file "$tf" "/etc/tmpfiles.d/$(basename "$tf")"
+done
+
 act "$SUDO systemctl daemon-reload"
 
 # Enable every timer in the component. Enabling is idempotent, so re-runs no-op.
