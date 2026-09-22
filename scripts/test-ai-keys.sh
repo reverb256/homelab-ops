@@ -3,7 +3,7 @@
 # live ~/.hermes/.env copy. Prints verdicts ONLY — never key values.
 set -u
 export SOPS_AGE_KEY_FILE="$HOME/.config/sops/age/keys.txt"
-SEC="$HOME/Projects/nixos-secrets/secrets"
+SEC="$HOME/Work/Projects/nixos-secrets/secrets"
 ENVF="$HOME/.hermes/.env"
 
 store() { sops -d --extract '["'"$2"'"]' "$SEC/$1" 2>/dev/null | tr -d '\n'; }
