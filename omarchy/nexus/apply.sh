@@ -39,11 +39,24 @@ if (( ! CHECK )) && [[ $EUID -ne 0 ]]; then
 fi
 SUDO=""; [[ $EUID -ne 0 ]] && SUDO="sudo"
 
-for dev_uuid in "$BACKING_UUID" "$CACHE_UUID"; do
-  [[ -e "/dev/disk/by-uuid/$dev_uuid" ]] \
-    || die "bcache member $dev_uuid is missing — do NOT continue, the pool is incomplete"
-done
-log "  both bcache members present"
+# The cache device was INTENTIONALLY detached on 2026-09-22: bcache writeback on
+# a consumer SATA SSD had already produced 3959 checksum errors on a Data,single
+# pool, and delivered only ~35% hits on a bulk-cold workload. sdb was then
+# reformatted as the /data/fast tier.
+#
+# Requiring it here made apply.sh ABORT on nexus, which meant every "declarative"
+# change in this component was undeliverable — the installer itself was the
+# blocker. Only the backing device is mandatory now; the cache is detected.
+[[ -e "/dev/disk/by-uuid/$BACKING_UUID" ]] \
+  || die "backing device $BACKING_UUID is missing — do NOT continue, the pool is incomplete"
+
+HAVE_CACHE=0
+if [[ -e "/dev/disk/by-uuid/$CACHE_UUID" ]]; then
+  HAVE_CACHE=1
+  log "  backing device present; cache device present (bcache caching active)"
+else
+  log "  backing device present; cache detached (expected since 2026-09-22)"
+fi
 
 command -v garage >/dev/null 2>&1 || warn "garage not installed yet (will install)"
 
@@ -72,9 +85,15 @@ install_file "$REPO_DIR/udev/69-bcache.rules"       /etc/udev/rules.d/69-bcache.
 if [[ ! -e /dev/bcache0 ]]; then
   log "  /dev/bcache0 absent — registering members now"
   act "$SUDO modprobe bcache"
-  # Cache device first, then backing: registering the backing device first
-  # leaves bcache0 in a degraded 'no cache' state until the cache appears.
-  act "$SUDO sh -c 'echo /dev/disk/by-uuid/$CACHE_UUID   > /sys/fs/bcache/register_quiet'"
+  # Cache device FIRST when one exists: registering the backing device first
+  # leaves bcache0 in a degraded 'no cache' state until the cache appears. With
+  # the cache detached there is nothing to register, so skip it — registering a
+  # nonexistent device writes the literal path into sysfs and fails the run.
+  if (( HAVE_CACHE )); then
+    act "$SUDO sh -c 'echo /dev/disk/by-uuid/$CACHE_UUID   > /sys/fs/bcache/register_quiet'"
+  else
+    log "  no cache device to register (detached) — registering backing only"
+  fi
   act "$SUDO sh -c 'echo /dev/disk/by-uuid/$BACKING_UUID > /sys/fs/bcache/register_quiet'"
   if (( ! CHECK )); then
     for _ in $(seq 20); do [[ -e /dev/bcache0 ]] && break; sleep 0.5; done
