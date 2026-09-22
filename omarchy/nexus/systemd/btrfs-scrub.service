@@ -1,0 +1,22 @@
+# /etc/systemd/system/btrfs-scrub.service
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit on the host.
+# Oneshot driven by btrfs-scrub.timer.
+#
+# Runs as root: needs to write /sys/fs/btrfs/<fsid>/devinfo/scrub_speed_max
+# (the I/O cap) and to read the device.
+#
+# Idle I/O class + Nice 19: the pool is one spinning HDD behind bcache that
+# also serves k3s, media playback and CI. The scrub must yield to all of them.
+
+[Unit]
+Description=Rate-limited btrfs scrub of the nexus-storage pool
+Documentation=https://github.com/reverb256/homelab-ops
+After=dev-bcache0.device data-media.mount
+Requires=data-media.mount
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/btrfs-scrub
+Nice=19
+IOSchedulingClass=idle
+IOSchedulingPriority=7

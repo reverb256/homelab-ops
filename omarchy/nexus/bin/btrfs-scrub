@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit on the host.
+#
+# Rate-limited btrfs scrub of the nexus-storage pool (/dev/bcache0).
+#
+# WHY THIS EXISTS
+#   A manual scrub on 2026-09-08 reported:
+#       Error summary:    csum=2324
+#         Corrected:      0
+#   The filesystem is Data,single, so file data has NO replica to repair from:
+#   scrub can detect corruption but can never fix it for data blocks. (Metadata
+#   is DUP and does self-heal, which is why a read-write scrub is used and not
+#   `-r`.) The value of this job is DETECTION, not repair:
+#
+#     count rising  -> active corruption: suspect hardware, or the bcache layer
+#                      serving stale data from the SSD cache
+#     count stable  -> historical damage, confined to identifiable files that
+#                      can be restored from /data/backups or re-fetched
+#
+#   Before this job nothing scrubbed the pool on a schedule, so damage could
+#   accumulate unnoticed.
+#
+# WHY IT IS RATE LIMITED
+#   The pool is a single spinning HDD (sda) behind bcache, shared with k3s,
+#   media playback and CI builds. An unthrottled scrub starves all of them —
+#   an earlier full-speed scrub managed 167 MiB/s and saturated the device.
+#   scrub_speed_max caps it so the host stays usable during the run.
+#
+# Restore from a bad state: stop btrfs-scrub.service and `btrfs scrub cancel
+# /data/media`. Never use `btrfs check --repair` on a mounted filesystem.
+
+set -euo pipefail
+
+MOUNT=/data/media
+RATE=100M
+LOG=/var/log/btrfs-scrub.log
+
+# Cap scrub I/O. Best-effort: a missing sysfs path must not fail the run.
+fsid="$(btrfs filesystem show "$MOUNT" | sed -n 's/.*uuid: *\([0-9a-f-]*\).*/\1/p')"
+if [ -n "$fsid" ] && [ -w "/sys/fs/btrfs/$fsid/devinfo/scrub_speed_max" ]; then
+  echo "$RATE" > "/sys/fs/btrfs/$fsid/devinfo/scrub_speed_max"
+fi
+
+{
+  echo "=== btrfs scrub $(date -Is) rate=${RATE} ==="
+  btrfs scrub start -B "$MOUNT"
+  echo "--- status ---"
+  btrfs scrub status "$MOUNT"
+  echo "--- device stats (note corruption_errs vs the 2026-09-08 baseline) ---"
+  btrfs device stats "$MOUNT"
+  echo "--- checksum failures reported this run (logical addr -> file) ---"
+  dmesg | grep -iE 'checksum verify failed' | tail -50 || true
+  echo "--- resolve with: btrfs inspect-internal logical-resolve <addr> $MOUNT ---"
+  echo "=== end $(date -Is) ==="
+} >> "$LOG" 2>&1
