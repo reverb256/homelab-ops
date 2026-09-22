@@ -1,0 +1,13 @@
+[Unit]
+Description=Alertmanager MCP (HTTP :8797, tailnet; vmalertmanager via port-forward)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/services/alertmanager-mcp.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

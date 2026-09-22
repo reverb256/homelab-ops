@@ -1,0 +1,14 @@
+[Unit]
+StartLimitIntervalSec=0
+Description=Trading MCP server (read-only observability)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/j_kro/Work/trading/mcp
+ExecStart=/home/j_kro/Work/trading/mcp/.venv/bin/python /home/j_kro/Work/trading/mcp/trading_mcp_server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
