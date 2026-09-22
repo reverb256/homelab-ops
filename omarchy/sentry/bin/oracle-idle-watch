@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# oracle-idle-watch — keep our Oracle Cloud "Always Free" VPS alive.
+#
+# Why this exists: OCI may reclaim Always Free compute it deems idle — during a 7-day
+# window with CPU 95th-percentile < 20%, network utilisation < 20%, and (A1 shapes only)
+# memory utilisation < 20%. Oracle emails a warning before acting, and an account left
+# idle for 30+ days may be treated as abandoned. So we watch three things:
+#   1. Oracle's own warning/notice emails (they arrive before anything is stopped);
+#   2. whether the instance is still reachable at all;
+#   3. the idle thresholds themselves (that part lives in the monitoring rules, not here).
+#
+# Managed from homelab-ops/omarchy/sentry — do not hand-edit on the host.
+# Config: /etc/oracle-idle-watch.conf (optional), keys: ORACLE_HOST, ALERT_FEED_URL.
+set -uo pipefail
+
+CONF=/etc/oracle-idle-watch.conf
+[ -r "$CONF" ] && . "$CONF"
+ALERT_FEED_URL="${ALERT_FEED_URL:-http://10.1.1.120:9799/alerts}"
+ORACLE_HOST="${ORACLE_HOST:-}"
+STATE_DIR="${STATE_DIR:-$HOME/.local/state/oracle-idle-watch}"
+mkdir -p "$STATE_DIR" 2>/dev/null || true
+
+alert() { # severity alertname summary
+  local payload
+  payload=$(printf '[{"labels":{"alertname":"%s","severity":"%s","source":"oracle-idle-watch"},"annotations":{"summary":"%s"},"startsAt":"%s"}]' \
+    "$2" "$1" "$3" "$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+  if curl -s -m 10 -X POST -H 'Content-Type: application/json' -d "$payload" "$ALERT_FEED_URL" >/dev/null 2>&1; then
+    echo "ALERT [$1] $2 — $3"
+  else
+    echo "ALERT-POST-FAILED [$1] $2 — $3 (feed: $ALERT_FEED_URL)"
+  fi
+}
+
+# --- 1. Oracle's emails (server-side Gmail search; the reclaim warning lands here) ---
+MAIL=""
+if [ -x "$HOME/.hermes/scripts/gmail-imap-junk.py" ]; then
+  MAIL=$(python3 "$HOME/.hermes/scripts/gmail-imap-junk.py" list "from:(oracle.com) newer_than:10d" 25 2>/dev/null || true)
+fi
+if [ -z "$MAIL" ]; then
+  MAIL=$(himalaya envelope list --page-size 30 2>/dev/null | grep -i 'oracle' || true)
+fi
+
+if printf '%s' "$MAIL" | grep -qiE 'idle|reclaim|suspend|terminat|action required|deleted'; then
+  alert critical OracleReclaimWarning "Oracle sent a reclaim/idle/suspension notice — act now: $(printf '%s' "$MAIL" | head -2 | tr '\n' ' ' | cut -c1-180)"
+elif [ -n "$MAIL" ]; then
+  echo "info: Oracle mail present (no reclaim keywords): $(printf '%s' "$MAIL" | head -2 | tr '\n' ' ' | cut -c1-180)"
+else
+  echo "ok: no Oracle mail in the last 10 days"
+fi
+
+# --- 2. Is the instance alive? ---
+if [ -n "$ORACLE_HOST" ]; then
+  if ping -c 2 -W 3 "$ORACLE_HOST" >/dev/null 2>&1 || timeout 6 bash -c "</dev/tcp/$ORACLE_HOST/22" 2>/dev/null; then
+    echo "ok: $ORACLE_HOST reachable"
+    date -u +%FT%TZ > "$STATE_DIR/last-reachable"
+  else
+    alert critical OracleVPSUnreachable "Oracle VPS $ORACLE_HOST unreachable — check the OCI console (stopped, reclaimed, or security-list change?)"
+  fi
+else
+  echo "skip: ORACLE_HOST not configured yet (instance not provisioned)"
+fi
+
+# --- 3. Nudge: if the keep-alive workload is missing we would drift into the idle window ---
+if [ -n "$ORACLE_HOST" ]; then
+  if timeout 12 ssh -o ConnectTimeout=8 -o BatchMode=yes "opc@$ORACLE_HOST" 'systemctl is-active oracle-keepalive.timer' >/dev/null 2>&1; then
+    echo "ok: keep-alive workload active on the instance"
+  else
+    alert warning OracleKeepaliveMissing "keep-alive workload not confirmed on $ORACLE_HOST — the instance can drift into Oracle's idle window"
+  fi
+fi
