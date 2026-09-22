@@ -1,0 +1,9 @@
+[Unit]
+Description=Detect and kill backup services stuck in activating
+Documentation=https://github.com/reverb256/homelab-ops
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/backup-stall-watchdog
+Nice=10

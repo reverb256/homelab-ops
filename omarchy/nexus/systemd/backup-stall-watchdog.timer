@@ -1,0 +1,11 @@
+[Unit]
+Description=Every 15min, kill a backup stuck in activating (silent-hang guard)
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=false
+
+[Install]
+WantedBy=timers.target
