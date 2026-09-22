@@ -13,11 +13,13 @@
 #   config          /etc/haven/image.env   (image tag; the updater owns this line)
 #
 # WHAT IT DELIBERATELY DOES NOT OWN (secret and data sources are declared, not copied)
-#   /etc/haven/haven.env      app secrets. Only these keys matter: PORT HOST SERVER_NAME ADMIN_USERNAME
-#                             JWT_SECRET VAPID_PUBLIC_KEY VAPID_PRIVATE_KEY.
-#                             JWT_SECRET is generated here if absent. VAPID keys must match existing push
-#                             subscriptions, so they are restored from the Garage backup (haven.env object)
-#                             rather than regenerated:  aws s3 cp s3://haven/current/haven.env /tmp/e
+#   /etc/haven/haven.env      NON-secret runtime settings (PORT HOST NODE_ENV FORCE_HTTP PUBLIC_URL
+#                             ADMIN_USERNAME). This installer OWNS it, from ./haven.env in this directory.
+#                             The SECRET half is a different file: /var/lib/haven/.env (JWT_SECRET,
+#                             VAPID_*) rendered from sops by render-app-secrets.sh. Swapping the two
+#                             takes Haven offline while the unit still reports active — it happened
+#                             2026-09-22, so the split is deliberate and load-bearing.
+#                             VAPID keys must match existing push subscriptions: never regenerate.
 #   /etc/cloudflared/tunnel.env   tunnel token for haven-vps. Treat as a secret; not in git.
 #   /var/lib/haven/haven.db       live data. Restored from the Garage backup: s3://haven/current/haven.db
 #   /etc/headscale/*              control-plane state (db.sqlite, keys) — restore from backup, never regenerate.
@@ -89,3 +91,10 @@ if (( JOIN )); then
 fi
 
 log "Done. Verify with: systemctl is-active haven cloudflared headscale; curl -sI https://haven.reverb256.dev"
+
+# Haven's systemd EnvironmentFile (non-secret runtime settings). The SECRET half lives in
+# /var/lib/haven/.env, rendered from sops by render-app-secrets.sh — do not swap them.
+if [[ -f "$HERE/haven.env" ]]; then
+  act "install /etc/haven/haven.env (non-secret runtime settings)"
+  $SD install -m 600 -o 1000 -g 1000 "$HERE/haven.env" /etc/haven/haven.env
+fi
