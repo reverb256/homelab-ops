@@ -255,4 +255,37 @@ restart a healthy garage (`garage.service` uptime spans repeated applies).
    zephyr (31GB) from OOMing. forge and sentry are the only NixOS hosts left,
    and they are 15GB and 31GB. Build capacity is an open question.
 
+## CACHE DETACHED (2026-09-22)
 
+`/dev/sdb` (Samsung 860 EVO 500G) was **detached** from `bcache0`. The pool now
+runs on `/dev/sda` (Seagate ST4000VN008 4TB) alone; btrfs is unchanged and all
+`data-*.mount` units still resolve, because they address the filesystem by btrfs
+UUID, not by device path. Detach does not move or rewrite backing-device data.
+
+Why it was detached:
+
+- **It was barely used.** `cache_hit_ratio` 35% with ~76% of I/O bypassing the
+  cache. The `/data` workload is bulk cold media (large sequential), which
+  bcache deliberately bypasses, so a 500G SSD was doing very little.
+- **It was a durability hazard.** In writeback, `writeback_percent=10` set the
+  dirty target to ~46G (10% of the cache). bcache therefore had no reason to
+  flush: 450M of writes sat unsynced on one consumer SATA SSD indefinitely, and
+  the backing HDD received effectively no writes at all.
+- **It was the prime suspect for corruption.** `corruption_errs` 3959 with a
+  Sep 8 scrub reporting `csum=2324, Corrected=0`, against a disk whose SMART is
+  clean. btrfs sitting on bcache makes the cache a candidate for stale reads.
+
+Verification at detach time: `sdb` holders empty, kernel logged
+`bcache: cached_dev_detach_finish() Caching disabled for sda`, all `/data`
+mounts live, reads and writes OK, `btrfs device stats` unchanged, `df`
+unchanged.
+
+**Measured cost:** the read cache was doing more than the hit ratio suggested.
+A scrub ran at 167 MiB/s with the cache attached; detached it runs at ~22 MiB/s
+on the same volume. Expect read-heavy passes (scrubs, library scans) to be
+several times slower on the bare HDD.
+
+**Current state:** `sdb` has no holders and is free to repurpose, but still
+carries a bcache superblock — run `wipefs -a /dev/sdb` before formatting it.
+The udev rule `69-bcache.rules` still registers both members; update it when
+`sdb` is permanently reassigned.
