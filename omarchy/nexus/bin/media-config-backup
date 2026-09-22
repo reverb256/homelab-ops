@@ -118,13 +118,18 @@ echo "  snapshotted $n_db database(s); staged $(find "$STAGE" -type f | wc -l) f
 
 sync_with_retry() {
   local src="$1" dst="$2" attempt sleep_s
-  for attempt in 1 2 3 4 5 6 7 8; do
+  # 8 attempts was too few. The monthly btrfs scrub saturates bcache0 (100% util,
+  # r_await ~360ms) and garage's data lives on that device, so PUTs intermittently
+  # 503. The 04:30 run burned all 8 retries and exited non-zero *after* uploading
+  # most objects, so the snapshot copy, verify and prune never ran. 30 attempts
+  # with a gentler ramp ride out a scrub pass instead of failing the night.
+  for attempt in $(seq 1 30); do
     if aws --endpoint-url "$ENDPOINT" s3 sync "$src" "$dst" \
         --only-show-errors --no-progress \
         --cli-connect-timeout 60 --cli-read-timeout 300; then
       return 0
     fi
-    sleep_s=$((attempt * 15))
+    sleep_s=$(( attempt < 6 ? attempt * 15 : 90 ))
     echo "WARN: sync attempt $attempt failed ($src -> $dst); retrying in ${sleep_s}s" >&2
     sleep "$sleep_s"
   done
