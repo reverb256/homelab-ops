@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Reconcile garage buckets and access keys to the declared state.
+#
+# Managed by homelab-ops/omarchy/nexus — installed by apply.sh to
+# /usr/local/bin/garage-buckets-reconcile and invoked from apply.sh.
+#
+# WHY THIS EXISTS: buckets and keys are service state, not files, so they cannot
+# be "deployed" by copying a config. Before this, every bucket and access key
+# was created by hand at a terminal — seven buckets across two days, each an
+# unrecorded command. media-config was created that way on 2026-09-22; if the
+# garage metadata were restored from backup, nothing in git would have recreated
+# the bucket or re-minted the key, and every backup timer would start failing
+# with a 403 that looks like a credential problem rather than missing state.
+#
+# The declarative form for service state is: a desired-state manifest
+# (/etc/garage-buckets.tsv, installed from the repo) plus an idempotent
+# reconciler (this script). Adding a bucket means adding a line to the manifest.
+#
+# NEVER prints secrets: `garage key create` echoes the secret key on stdout, so
+# its output is discarded. Key MATERIAL is deliberately not managed here — the
+# backup scripts read it from garage at run time via the local admin socket,
+# which is what let memlawb/haven/activepieces survive the 2026-09-20 key
+# rotation that silently broke zephyr's static rclone remote.
+set -euo pipefail
+
+MANIFEST="${1:-/etc/garage-buckets.tsv}"
+GARAGE_CONF=/etc/garage.toml
+
+command -v garage >/dev/null 2>&1 || { echo "garage not installed" >&2; exit 2; }
+[[ -r "$MANIFEST" ]] || { echo "manifest $MANIFEST not readable" >&2; exit 2; }
+
+changed=0
+
+# Tab- or space-separated: <bucket> <key> <permissions>
+while read -r bucket key perms; do
+  [[ -z "$bucket" || "$bucket" == \#* ]] && continue
+
+  if garage -c "$GARAGE_CONF" bucket info "$bucket" >/dev/null 2>&1; then
+    printf '  ok: bucket %s (present)\n' "$bucket"
+  else
+    garage -c "$GARAGE_CONF" bucket create "$bucket" >/dev/null
+    printf '  created bucket %s\n' "$bucket"
+    changed=1
+  fi
+
+  if garage -c "$GARAGE_CONF" key info "$key" >/dev/null 2>&1; then
+    printf '  ok: key %s (present)\n' "$key"
+  else
+    # Output discarded on purpose — it contains the secret key.
+    garage -c "$GARAGE_CONF" key create "$key" >/dev/null
+    printf '  created key %s\n' "$key"
+    changed=1
+  fi
+
+  # allow is idempotent; re-granting is a no-op.
+  # shellcheck disable=SC2086
+  garage -c "$GARAGE_CONF" bucket allow $(printf -- '--%s ' ${perms//,/ }) \
+    "$bucket" --key "$key" >/dev/null
+  printf '  granted %s on %s to %s\n' "$perms" "$bucket" "$key"
+done < "$MANIFEST"
+
+echo
+echo "reconciled; changed=$changed"
+echo "buckets:"
+garage -c "$GARAGE_CONF" bucket list
+echo "keys:"
+garage -c "$GARAGE_CONF" key list

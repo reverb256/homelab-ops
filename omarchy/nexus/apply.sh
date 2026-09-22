@@ -113,16 +113,36 @@ done
 # This section also closes a gap: apply.sh installed only systemd/*.mount, so
 # the bin/ scripts and .timer/.service units staged in this component were
 # never covered by it.
-log "btrfs scrub timer"
+log "Component scripts and units"
 
-install_file "$REPO_DIR/bin/btrfs-scrub" /usr/local/bin/btrfs-scrub 0755
-install_file "$REPO_DIR/systemd/btrfs-scrub.service" \
-             /etc/systemd/system/btrfs-scrub.service
-install_file "$REPO_DIR/systemd/btrfs-scrub.timer" \
-             /etc/systemd/system/btrfs-scrub.timer
+# Install the WHOLE component tree, never named units. apply.sh previously
+# installed only systemd/*.mount, so every bin/ script and .service/.timer
+# staged here was committed to git but never deployed — the btrfs scrub timer
+# sat unapplied until someone noticed, and media-config-backup would have done
+# the same. Adding a component to git must be enough to deploy it.
+for s in "$REPO_DIR"/bin/*; do
+  [[ -f "$s" ]] || continue
+  install_file "$s" "/usr/local/bin/$(basename "$s")" 0755
+done
+
+for u in "$REPO_DIR"/systemd/*.service "$REPO_DIR"/systemd/*.timer; do
+  [[ -f "$u" ]] || continue
+  install_file "$u" "/etc/systemd/system/$(basename "$u")"
+done
+
+install_file "$REPO_DIR/garage-buckets.tsv" /etc/garage-buckets.tsv
 
 act "$SUDO systemctl daemon-reload"
-act "$SUDO systemctl enable --now btrfs-scrub.timer"
+
+# Enable every timer in the component. Enabling is idempotent, so re-runs no-op.
+for u in "$REPO_DIR"/systemd/*.timer; do
+  [[ -f "$u" ]] || continue
+  act "$SUDO systemctl enable --now $(basename "$u")"
+done
+
+# memlawb-server is the one long-running daemon in this component; every other
+# .service is Type=oneshot driven by its .timer.
+act "$SUDO systemctl enable memlawb-server.service"
 
 if (( ! CHECK )); then
   for unit in "$REPO_DIR"/systemd/*.mount; do
@@ -346,5 +366,15 @@ if (( ! CHECK )); then
   $SUDO garage -c /etc/garage.toml status 2>&1 | head -20 \
     || warn "garage status did not respond yet (may still be opening the db)"
 fi
+
+# ── 8. garage buckets + keys ──────────────────────────────────────────────
+# Buckets and keys are service state, so they cannot be deployed by copying a
+# file. Reconcile them from the manifest installed above. Runs HERE, after
+# garage is confirmed active, because on a fresh host the S3 API does not exist
+# until step 7 completes. Without this, a restored garage metadata directory
+# would leave every backup timer failing with a 403 that reads like a bad
+# credential rather than missing state.
+log "Garage buckets and keys"
+act "$SUDO /usr/local/bin/garage-buckets-reconcile"
 
 log "Done$( (( CHECK )) && printf ' (check mode — nothing changed)' )"
