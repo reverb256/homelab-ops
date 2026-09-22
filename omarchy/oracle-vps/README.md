@@ -35,4 +35,4 @@ Every unit here exists for a named reason. If a unit has no purpose written belo
 
 ## Rollback
 
-The k8s deployment in namespace `haven` still runs the same image and is reachable at `haven.lan`. To roll the public route back, repoint the `haven.reverb256.dev` CNAME to the old tunnel `95a8d599-a069-414a-ab5f-4be063cb0f53.cfargotunnel.com`.
+The k8s deployment in namespace `haven` still runs the same image and is reachable at `haven.lan`. To roll the public route back: first re-enable the k8s connector (`cloudflared.enabled: true` in `haven-k8s` chart values-lan.yaml — it was disabled on 2026-09-22 once the VPS took over the route), wait for the pod, then repoint the `haven.reverb256.dev` CNAME to the old tunnel `95a8d599-a069-414a-ab5f-4be063cb0f53.cfargotunnel.com`. For a LAN-only rollback no tunnel is needed: the k8s deployment still answers at `haven.lan`.
