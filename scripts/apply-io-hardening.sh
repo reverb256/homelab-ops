@@ -36,6 +36,7 @@ install_file() {
 install_file "$ROOT/etc/systemd/journald.conf.d/10-homelab-journal.conf" /etc/systemd/journald.conf.d/10-homelab-journal.conf
 install_file "$ROOT/etc/systemd/system/systemd-journald.service.d/10-homelab-io.conf" /etc/systemd/system/systemd-journald.service.d/10-homelab-io.conf
 install_file "$ROOT/etc/systemd/system/plocate-updatedb.service.d/10-homelab-io.conf" /etc/systemd/system/plocate-updatedb.service.d/10-homelab-io.conf
+install_file "$ROOT/etc/updatedb.conf" /etc/updatedb.conf
 install_file "$ROOT/etc/rancher/k3s/config.yaml" /etc/rancher/k3s/config.yaml
 
 if [ -f "$ROOT/usr/local/bin/btrfs-scrub" ]; then

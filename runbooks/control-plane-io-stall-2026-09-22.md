@@ -54,7 +54,29 @@ filesystem-wide scan (`find /`, `du`, scrub, backup tar) a whole-host stall risk
 | etcd slow-disk timeouts on all 3 members | `omarchy/*/etc/rancher/k3s/config.yaml` | `heartbeat-interval=250ms`, `election-timeout=2.5s` (was 100 ms/1 s). Defaults assume sub-100 ms fsync; forge's hit 7.5 s, costing the member its raft read-index and crashing k3s. Upstream etcd tuning for slow storage. |
 | journald size + write-behaviour cap | `omarchy/*/etc/systemd/journald.conf.d/10-homelab-journal.conf` | `/var/log/journal` shared etcd's device: 2.1 GB → 952 MB after the cap. Fewer, larger flushes; bounded burst absorption. |
 | journald / plocate I/O class | `omarchy/*/etc/systemd/system/{systemd-journald,plocate-updatedb}.service.d/10-homelab-io.conf` | Both are pure bookkeeping/index work on the etcd device. `IOSchedulingClass=idle`, low nice. |
+| plocate stops indexing the pool | `omarchy/*/etc/updatedb.conf` | See below — `updatedb` took **12h09m** and never finished because it walks `/data/media`. |
 | scrub is now backup-aware and cheaper | `omarchy/nexus/usr/local/bin/btrfs-scrub` | Rate cap 100M → **24M**; new guards (see below). |
+
+### The pool was eating the backups and the index, not just etcd (same root cause)
+
+`plocate-updatedb` on nexus started 00:30:37 and was killed by TERM at **12:39:37 after
+12h09m** — `/etc/updatedb.conf` did not prune `/data` at all, so it walked the 3.2 TiB
+pool with hanging extents. On the same morning `media-config-backup.service` burned its
+entire retry budget on the same saturated pool:
+
+```
+WARN: sync attempt 30 failed (/data/fast/backup-stage/20260922-115300 -> s3://media-config/current/); retrying in 90s
+media-config-backup.service: Main process exited, code=exited, status=1/FAILURE   (12:38:57)
+```
+
+Fix: `PRUNEPATHS` now covers the pool (`/data/media /data/shared /data/games
+/data/backups /data/oldhome /data/models /data/fast`), `/var/lib/rancher` and `/mnt`.
+Verified on nexus: `updatedb` completes in **53.9 s** and writes a fresh index
+(was 12 h + killed). The arr/Garage tiers do not need a locate index.
+
+`media-config-backup` is unchanged in git (never disabled); its next run is the 04:36
+timer, and `s3-freshness.timer` is the guard that watches for stale objects.
+
 
 ### Scrub guards (bcache0)
 
