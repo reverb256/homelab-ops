@@ -24,6 +24,7 @@ Garage — that is a one-way door, documented in the runbook.
 | k8s (media, monitoring, trading, haven) | k8s Secrets, applied per project | project-specific, e.g. quill's `sops-sync-k8s.sh --check` proves cluster == git |
 | Oracle VPS (haven, cloudflared) | **hand-placed** (`/etc/haven/haven.env`, `/etc/cloudflared/tunnel.env`) | none yet — the gap this file exists to close |
 | nexus (garage, backup keys) | `/etc/garage-secrets/*`, root-only files | `garage key info <name> --show-secret` |
+| nexus host backup script (RustFS, `*arr`/Jellyfin configs) | sops store → rendered env file `~/.config/rustfs/backup.env` (0600) by `scripts/render-rustfs-backup-env.sh` (run on zephyr); the script sources it | re-render, then `aws --endpoint-url http://localhost:9000 s3 ls s3://jellyfin-backups/configs/` |
 | Hermes profiles (sentry/nexus/zephyr) | per-profile `.env`, 0600, ~12 files, ~2 KB each | none — no drift detection |
 | Cloudflare (tokens, tunnels) | sops store + API | `GET /user/tokens/verify` |
 
@@ -56,6 +57,17 @@ Garage — that is a one-way door, documented in the runbook.
 
 ## Known gaps
 
+- **`nexus:/usr/local/bin/backup-to-rustfs.sh` carried its RustFS S3 credentials inline**
+  (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) until 2026-09-22 — a hand-placed, non-declarative
+  file any process on nexus could read. Now store-backed (`secrets/storage/rustfs-backup-*`,
+  rendered to a 0600 env file; the script sources it and refuses to run without it). **Still a gap:**
+  the script lives in no repo and has no schedule (no cron/timer references it), so it only runs
+  when a human remembers — and its siblings (`media-config-backup`, `haven-backup`,
+  `activepieces-backup`, `memlawb-backup`, `stampede-backup`, `btrfs-scrub`,
+  `garage-buckets-reconcile`) are the same class. *Smallest next action:* move the script into this
+  repo's `scripts/` and add a systemd timer; then sweep the siblings the same way.
+  **Rotate the RustFS keys** that were embedded in the file (they were also readable by any
+  `j_kro` process for 3 days; rotation is a dashboard/CLI action on the RustFS side).
 - The Oracle VPS's two secret files are hand-placed (see rules 5). They belong in the store with a
   render step wired into `omarchy/oracle-vps/apply.sh`.
 - Hermes profile `.env` files have no drift detection — the same keys are duplicated across ~12
@@ -75,6 +87,15 @@ Garage — that is a one-way door, documented in the runbook.
       grep -qE 'sops:|BEGIN AGE ENCRYPTED FILE|ENC\[AES256_GCM' "$f" || echo "NO ENVELOPE: $f"
     done
     git grep -l 'AGE-SECRET-KEY' || echo "no age private keys tracked"
+
+Rendered-file drift (fingerprints only — never print a value):
+
+    # RustFS backup env on nexus == store ciphertext?
+    sha256sum <(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["data"])' \
+      <(sops -d --output-type json secrets/storage/rustfs-backup-access-key-id.yaml)) \
+      <(grep -oP '(?<=^export AWS_ACCESS_KEY_ID=).*' /dev/stdin)   # compare fp with the render line
+
+Simpler: re-run the render script and confirm its printed fingerprints are unchanged.
 
 Both checks on 2026-09-22: zero files with no envelope, zero age private keys tracked. The only
 raw file found was untracked on disk (a sibling's work in progress) and was sops-encrypted before
