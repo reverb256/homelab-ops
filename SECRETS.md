@@ -34,10 +34,13 @@ Garage — that is a one-way door, documented in the runbook.
    (`-----BEGIN AGE ENCRYPTED FILE-----`). A sweep that tests only for `sops:` mislabels every age
    file as plaintext; it did exactly that on 2026-09-22 and produced a false alarm across 11 files.
    Test for either envelope, and treat "no envelope" as the only alarm.
-2. **A required credential is never `optional: true`.** A secret reference declared optional turns a
-   missing credential into a silent runtime failure. This already happened: `alertmail-relay`
-   started happily and returned 503 for every alert because its Cloudflare secret was declared
-   `optional: true` and did not exist.
+2. **A missing credential must fail loudly — either refuse to start, or degrade *visibly*.**
+   `optional: true` is only legitimate when the consumer explicitly degrades and something observes the
+   degradation. `alertmail-relay` is the reference case: its contract documents that with no Cloudflare
+   credentials `/webhook` answers 503, alertmanager retries, and the gmail fallback still delivers — so
+   the flag is correct design, but nothing watches the 503s, which is why the branded path sat broken
+   unnoticed. The fix is a monitor on its degraded state, not removing the flag. (Rule corrected
+   2026-09-22 after the first version of it was too absolute.)
 3. **Every secret has one owner and one delivery path.** Two delivery paths for the same secret
    means one of them is stale.
 4. **Rotation is a procedure, not an intention.** Rotate on leak, on staff change, and on a schedule
