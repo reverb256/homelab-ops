@@ -30,8 +30,10 @@ Garage — that is a one-way door, documented in the runbook.
 ## Rules
 
 1. **Ciphertext only in git.** Never commit a plaintext secret, an age private key, or a decrypted
-   render. `nixos-secrets` holds ciphertext; verify before every commit that the file is encrypted
-   (`grep -q sops: <file>`).
+   render. **The store carries two envelope formats** — sops YAML (`sops:` metadata) and age files
+   (`-----BEGIN AGE ENCRYPTED FILE-----`). A sweep that tests only for `sops:` mislabels every age
+   file as plaintext; it did exactly that on 2026-09-22 and produced a false alarm across 11 files.
+   Test for either envelope, and treat "no envelope" as the only alarm.
 2. **A required credential is never `optional: true`.** A secret reference declared optional turns a
    missing credential into a silent runtime failure. This already happened: `alertmail-relay`
    started happily and returned 503 for every alert because its Cloudflare secret was declared
@@ -53,3 +55,15 @@ Garage — that is a one-way door, documented in the runbook.
 - Only 3 repos declare a `secretspec.toml`; the fleet has no single contract to diff against.
 - `secretspec-checkpoint` skill still audits the old sops-nix/agenix registries from the NixOS era.
   No NixOS hosts remain, so that skill's premise is gone and it should be retired.
+
+## Verification sweep (use this, not a sops-only grep)
+
+    cd ~/Work/Projects/nixos-secrets
+    for f in $(git ls-files 'secrets/*'); do
+      grep -qE 'sops:|BEGIN AGE ENCRYPTED FILE|ENC\[AES256_GCM' "$f" || echo "NO ENVELOPE: $f"
+    done
+    git grep -l 'AGE-SECRET-KEY' || echo "no age private keys tracked"
+
+Both checks on 2026-09-22: zero files with no envelope, zero age private keys tracked. The only
+raw file found was untracked on disk (a sibling's work in progress) and was sops-encrypted before
+commit — so nothing plaintext has ever entered git history.
