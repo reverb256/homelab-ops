@@ -1,0 +1,21 @@
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit on the host.
+# Oneshot driven by media-config-backup.timer.
+#
+# Runs as root because it reads garage credentials via the local admin socket
+# (`garage key info --show-secret`), which is root-only. No secrets on disk.
+
+[Unit]
+Description=Back up the arr config tier (media-config) to garage S3
+Documentation=https://github.com/reverb256/homelab-ops
+# Both the source device and garage must be up, or the run is meaningless.
+RequiresMountsFor=/data/nvme1
+After=data-nvme1.mount garage.service
+Wants=garage.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/media-config-backup
+# Backups are never urgent; stay out of the way of the miners and garage.
+Nice=10
+IOSchedulingClass=idle
+IOSchedulingPriority=7
