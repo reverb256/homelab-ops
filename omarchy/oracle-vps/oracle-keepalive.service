@@ -1,0 +1,6 @@
+[Unit]
+Description=Anti-reclaim activity (floor until real services run)
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/oracle-keepalive
+Nice=19

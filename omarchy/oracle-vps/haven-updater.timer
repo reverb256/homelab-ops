@@ -1,0 +1,9 @@
+[Unit]
+Description=Run the Haven upstream updater every 6 hours
+
+[Timer]
+OnCalendar=*-*-* 00/6:17:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

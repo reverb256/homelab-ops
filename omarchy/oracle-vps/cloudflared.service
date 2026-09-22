@@ -1,0 +1,15 @@
+[Unit]
+Description=Cloudflare Tunnel (haven-vps) — exposes Haven on the Oracle public tier
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/cloudflared/tunnel.env
+ExecStart=/usr/local/bin/cloudflared --no-autoupdate tunnel run --token ${TUNNEL_TOKEN}
+Restart=always
+RestartSec=5
+User=cloudflared
+
+[Install]
+WantedBy=multi-user.target

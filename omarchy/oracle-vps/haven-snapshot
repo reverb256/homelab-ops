@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Consistent SQLite snapshot of the Haven instance on this host (Oracle VPS).
+# Leaves /tmp/haven-snapshot.db for the caller; removes the in-container copy.
+set -euo pipefail
+OUT=/tmp/haven-snapshot.db
+sudo -n rm -f "$OUT" >&2
+sudo -n podman exec -i haven node - <<'NODE' >&2
+const Database = require('/app/node_modules/better-sqlite3');
+const db = new Database('/data/haven.db');
+db.pragma('busy_timeout = 8000');
+db.prepare("VACUUM INTO '/data/backup-haven-auto.db'").run();
+console.log('vacuum ok');
+NODE
+sudo -n podman cp haven:/data/backup-haven-auto.db "$OUT" >&2
+sudo -n podman exec haven rm -f /data/backup-haven-auto.db >&2
+sudo -n chmod 644 "$OUT"
+sz=$(sudo -n stat -c%s "$OUT")
+if [ "$sz" -lt 4096 ]; then echo "snapshot too small ($sz bytes)" >&2; exit 2; fi
+echo "snapshot ok: $OUT ($sz bytes)" >&2

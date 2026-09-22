@@ -1,0 +1,7 @@
+[Unit]
+Description=Anti-reclaim activity for the Always Free instance
+[Timer]
+OnCalendar=hourly
+Persistent=true
+[Install]
+WantedBy=timers.target

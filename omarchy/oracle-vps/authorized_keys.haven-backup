@@ -1,0 +1,5 @@
+# Append to /home/arch/.ssh/authorized_keys ON the VPS.
+# Install the public half of the dedicated backup key from nexus
+# (~/.ssh/haven-backup_ed25519.pub). The forced command streams a tar of
+# (sqlite snapshot, app .env) to stdout; logs go to stderr.
+command="/usr/local/bin/haven-backup-stream",no-agent-forwarding,no-port-forwarding,no-pty <paste public key here>

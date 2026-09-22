@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Bump the Haven image tag to upstream's newest published release, then restart.
+# Runs ON the Oracle VPS: the instance that serves users owns its own updates.
+# Two registry facts this script encodes:
+#   - upstream git tags carry a leading "v" (v4.11.0); the GHCR image tag does not (4.11.0)
+#   - GHCR answers 404 (not 401) for an OCI index manifest unless an Accept header names a manifest type
+# No pipelines around head: awk exits on first match so `pipefail` cannot see SIGPIPE.
+set -euo pipefail
+ENVF=/etc/haven/image.env
+ACCEPT='Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json'
+REL=$(curl -sS -m 25 https://api.github.com/repos/ancsemi/Haven/releases/latest | awk -F'"' '/"tag_name"/{print $4; exit}')
+if [ -z "${REL:-}" ]; then echo "could not read upstream release tag" >&2; exit 1; fi
+TAG="${REL#v}"
+TOK=$(curl -sS -m 25 "https://ghcr.io/token?scope=repository:ancsemi/haven:pull&service=ghcr.io" | awk -F'"' '/"token"/{print $4; exit}')
+if [ -z "${TOK:-}" ]; then echo "could not obtain a GHCR pull token" >&2; exit 1; fi
+CODE=$(curl -s -o /dev/null -w '%{http_code}' -m 25 -H "$ACCEPT" -H "Authorization: Bearer $TOK" "https://ghcr.io/v2/ancsemi/haven/manifests/$TAG")
+if [ "$CODE" != "200" ]; then echo "tag $TAG (from release $REL) is not published on ghcr.io (http $CODE)" >&2; exit 1; fi
+CUR=$(sed -n 's|^HAVEN_IMAGE=ghcr.io/ancsemi/haven:||p' "$ENVF")
+if [ "$CUR" = "$TAG" ]; then echo "already at $TAG"; exit 0; fi
+sed -i "s|^HAVEN_IMAGE=.*|HAVEN_IMAGE=ghcr.io/ancsemi/haven:$TAG|" "$ENVF"
+systemctl restart haven
+echo "updated $CUR -> $TAG"

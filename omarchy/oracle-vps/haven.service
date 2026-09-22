@@ -1,0 +1,20 @@
+[Unit]
+Description=Haven (self-hosted chat) — Oracle public tier
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Restart=always
+RestartSec=5
+EnvironmentFile=/etc/haven/haven.env
+EnvironmentFile=/etc/haven/image.env
+ExecStartPre=-/usr/bin/podman rm -f haven
+ExecStart=/usr/bin/podman run --name haven --replace --rm \
+  -p 3001:3000 \
+  -v /var/lib/haven:/data:Z \
+  --env-file /etc/haven/haven.env \
+  ${HAVEN_IMAGE}
+ExecStop=/usr/bin/podman stop -t 10 haven
+
+[Install]
+WantedBy=multi-user.target
