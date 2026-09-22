@@ -17,9 +17,14 @@
 #
 # Cron: every 10 min (no-agent). State: ~/.hermes/state/model-health/
 # History: $STATE/history.jsonl   Last run: $STATE/last-run
-export HOME=/home/j_kro
+export HOME="${MODEL_HEALTH_HOME:-/home/j_kro}"
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/bin:/bin:$HOME/.local/bin:$HOME/.local/share/mise/shims"
 set -u
+
+# --check: report-only pre-flight. Never writes (no markers, no rotation, no
+# history row) and exits nonzero when a credential-invalid signal is active, so a
+# gate or a human can ask "would this daemon have noticed?" without side effects.
+if [ "${1:-}" = "--check" ]; then export MODEL_HEALTH_CHECK=1; fi
 
 python3 - <<'PY'
 import json, os, re, subprocess, time, glob
@@ -30,8 +35,69 @@ STATE = f"{HOME}/.hermes/state/model-health"
 LOG = f"{HOME}/.hermes/logs/agent.log"
 ENV = f"{HOME}/.hermes/.env"
 os.makedirs(STATE, exist_ok=True)
-LIVE = os.path.exists(f"{STATE}/live")
+CHECK = os.environ.get("MODEL_HEALTH_CHECK") == "1"   # report-only; nonzero exit on an active auth signal
+LIVE = os.path.exists(f"{STATE}/live") and not CHECK  # --check never writes
 now = time.time()
+
+# ---- credential-drift detection (the class this daemon used to be blind to) ----
+# An `auth` signal is a CREDENTIAL question, not a supply question. The probe below
+# uses the root env key, so a green probe proves *that* key works — it says nothing
+# about a profile whose own env holds a stale copy. That is exactly how the nexus
+# default profile kept answering "Invalid credential" while this daemon reported
+# "probe OK -> no action": the store had a good key, ~/.hermes/.env had a rotted
+# one, and nothing compared the two. Repair is the house mechanism, not a new one:
+# provider-key-render.py --check (store -> host, fingerprints only).
+HOSTNAME = os.uname().nodename
+REPO = f"{HOME}/homelab-ops" if os.path.isdir(f"{HOME}/homelab-ops") else f"{HOME}/Work/Projects/homelab-ops"
+RENDER = f"{REPO}/scripts/provider-key-render.py"
+AGE_HOST = "zephyr"          # holds the age identity; the store cannot be read elsewhere
+STORE_ROUTES = {             # provider -> (store route, host env var)
+  "opencode-go":     ("secrets/ai/opencode-go-api-key.yaml", "OPENCODE_GO_API_KEY"),
+  "opencode-zen":    ("secrets/ai/opencode-api-key.yaml", "OPENCODE_API_KEY"),
+  "nous":            ("secrets/ai/nous-api-key.yaml", "NOUS_API_KEY"),
+  "nvidia":          ("secrets/ai/nvidia-api-key.yaml", "NVIDIA_API_KEY"),
+  "openrouter":      ("secrets/ai/openrouter-api-key.yaml", "OPENROUTER_API_KEY"),
+  "openrouter-free": ("secrets/ai/openrouter-api-key.yaml", "OPENROUTER_API_KEY"),
+}
+AUTH_TTL = 3600              # an auth breach stays VISIBLE this long (the line window forgets sooner)
+
+# Test seams: the regression test drives a sandboxed HOME with no network and no
+# real host, so the two external commands must be injectable. Production leaves
+# these unset and behaves exactly as before.
+CURL = os.environ.get("MODEL_HEALTH_CURL", "curl")
+SSH = os.environ.get("MODEL_HEALTH_SSH", "ssh")
+
+
+def store_drift(prov, fix=False):
+    """('in-sync'|'drift'|'unknown', detail) for store vs THIS host's env."""
+    route, var = STORE_ROUTES.get(prov, (None, None))
+    if not route:
+        return "unknown", "no store route mapped"
+    if not os.path.exists(RENDER):
+        return "unknown", f"renderer absent ({RENDER})"
+    cmd = [SSH, "-o", "ConnectTimeout=8", AGE_HOST,
+           f"/usr/bin/python3 {RENDER} --route {route} --env-var {var} "
+           f"--host {HOSTNAME}" + ("" if fix else " --check")]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+    except Exception as e:  # noqa: BLE001
+        return "unknown", f"delegation failed: {type(e).__name__}"
+    out = (r.stdout or r.stderr or "").strip().replace("\n", " | ")[:220]
+    if r.returncode == 0:
+        return "in-sync", out
+    if r.returncode == 1:
+        return "drift", out
+    return "unknown", f"rc={r.returncode} {out}"
+
+
+def active_auth(prov):
+    """(is_active, age_s) from the sticky breach marker."""
+    try:
+        t = float(open(f"{STATE}/auth-breach-{prov}").read().strip())
+    except Exception:
+        return False, None
+    return (t > now - AUTH_TTL), int(now - t)
+
 
 # ---- probe map: provider -> (url, model, key env(s)) ----
 # NOTE: opencode-zen removed — its free tier answers "FreeTierError: ... can only be
@@ -138,6 +204,16 @@ for ln in lines:
             counts[p][c] += 1
             break
 
+# ---- 2b. sticky auth breach ----
+# The window is LINE-COUNT based (tail -6000 root / -1500 per profile), so a real
+# auth breach ages out of it within a couple of ticks and the signal silently
+# disappears — observed live 2026-09-22: 14:10 `opencode-go {auth: 3, quota: 1}`
+# (threshold crossed) -> 14:20 `{quota: 1}` (nothing crossed, no action line).
+# Persist the breach so it stays visible and actionable for AUTH_TTL.
+for p, cc in counts.items():
+    if cc.get("auth", 0) >= THRESH["auth"] and LIVE and not CHECK:
+        open(f"{STATE}/auth-breach-{p}", "w").write(str(int(now)))
+
 # ---- 3. cooldown markers (tier + until) ----
 def read_marker(p):
     try:
@@ -174,7 +250,7 @@ def probe(p):
     if not key:
         return False, "missing key"
     body = json.dumps({"model": model, "messages": [{"role": "user", "content": "reply with the single word: ok"}], "max_tokens": 64})
-    cmd = ["curl", "-s", "-m", "15", url,
+    cmd = [CURL, "-s", "-m", "15", url,
            "-H", f"Authorization: Bearer {key}",
            "-H", "Content-Type: application/json", "-d", body]
     if "opencode.ai" in url:
@@ -201,12 +277,19 @@ def probe(p):
 # ---- 4. decide + act ----
 actions = []
 saturated = []
+auth_flagged = []
 for p in sorted(providers):
     tier, until = read_marker(p)
     c = counts.get(p, {})
+    breached, age = active_auth(p)
     crossed = any(c.get(k, 0) >= v for k, v in THRESH.items())
+    # An auth signal is actionable in BOTH shapes: a live crossing, or a sticky
+    # breach whose counts have already aged out of the line window.
+    auth_sig = breached or c.get("auth", 0) >= THRESH["auth"]
     if crossed:
         reason = "threshold"
+    elif breached:
+        reason = "auth-sticky"
     elif tier and until <= now:
         reason = "half-open"
     else:
@@ -216,6 +299,37 @@ for p in sorted(providers):
         actions.append(f"{p}: probe skipped ({detail})")
         continue
     if ok:
+        if auth_sig:
+            # A GREEN PROBE IS NOT PROOF HERE. The probe uses the root env key, so
+            # it validates the store/root credential — not the credential a
+            # profile-scoped consumer actually sends. Compare store vs host env
+            # (fingerprints only) and repair from the store, which is the source of
+            # truth; only if they agree is a green probe evidence that the
+            # credential itself is fine.
+            st, d = store_drift(p)
+            auth_flagged.append(p)
+            shown = f"age {age}s" if age is not None else f"auth={c.get('auth', 0)}"
+            if st == "drift":
+                if CHECK or not LIVE:
+                    actions.append(f"AUTH-DRIFT {p} ({shown}): store != {HOSTNAME} env -> "
+                                   f"WOULD re-render from the store [{d}]")
+                else:
+                    st2, d2 = store_drift(p, fix=True)
+                    actions.append(f"AUTH-DRIFT {p} ({shown}): store != {HOSTNAME} env -> "
+                                   f"re-rendered from the store (now {st2}) [{d2}]")
+                    clear_marker(p)
+            elif st == "unknown":
+                actions.append(f"AUTH-SIGNAL {p} ({shown}): credential-invalid signal active and "
+                               f"store drift UNKNOWN [{d}] — a green probe is not proof for "
+                               f"profile-scoped keys")
+            else:
+                actions.append(f"AUTH-SIGNAL {p} ({shown}): credential-invalid signal active and store "
+                               f"IN SYNC with {HOSTNAME} env — the credential itself is rejected, so "
+                               f"rotate consumers off {p} instead of assuming a supply problem")
+                saturated.append(p)      # reuse the rotation pass (now including the default profile)
+                if LIVE:
+                    write_marker(p, max(tier, 1), now + 900)
+            continue
         if reason == "half-open":
             n = bump_halfopen(p)
             if n >= 2:
@@ -258,7 +372,13 @@ for prov in saturated:
         continue
     tp, tm = target
     tag = "DEGRADED TARGET " if degraded else ""
-    for pconf in glob.glob(f"{HOME}/.hermes/profiles/*/config.yaml"):
+    # The DEFAULT profile lives in ~/.hermes/config.yaml, not profiles/*. Omitting it
+    # was the other half of the blind spot: it is the profile that answers inbound A2A
+    # (i.e. the on-call responder for money halts) and the one that was pinned to
+    # opencode-go while answering "Invalid credential".
+    configs = [f"{HOME}/.hermes/config.yaml"] + sorted(
+        glob.glob(f"{HOME}/.hermes/profiles/*/config.yaml"))
+    for pconf in configs:
         try:
             content = open(pconf).read()
         except Exception:
@@ -266,17 +386,18 @@ for prov in saturated:
         m = re.search(r"(?ms)^model:\s*\n(.*?)(^\S|\Z)", content)
         block = m.group(1) if m else ""
         if re.search(rf"^\s*provider:\s*{re.escape(prov)}\s*$", block, re.M):
+            who = "default" if pconf.endswith("/.hermes/config.yaml") else pconf.split("/")[-2]
             if LIVE:
                 newc = re.sub(r"(?m)^(\s*)provider: .*$", rf"\1provider: {tp}", content, count=1)
                 newc = re.sub(r"(?m)^(\s*)default: .*$", rf"\1default: {tm}", newc, count=1)
                 open(pconf, "w").write(newc)
                 chk = open(pconf).read()
                 if re.search(rf"provider:\s*{re.escape(tp)}", chk) and re.search(rf"default:\s*{re.escape(tm)}", chk):
-                    actions.append(f"{tag}ROTATED profile {pconf.split('/')[-2]} -> {tp}/{tm}")
+                    actions.append(f"{tag}ROTATED profile {who} -> {tp}/{tm}")
                 else:
                     actions.append(f"!! {pconf}: rotation verify FAILED")
             else:
-                actions.append(f"WOULD ROTATE {tag}profile {pconf.split('/')[-2]} -> {tp}/{tm}")
+                actions.append(f"WOULD ROTATE {tag}profile {who} -> {tp}/{tm}")
     for j in jobs:
         if not j.get("enabled"):
             continue
@@ -291,16 +412,24 @@ for prov in saturated:
         else:
             actions.append(f"WOULD REPIN {j.get('name')} -> {tp}/{tm}")
 
-with open(f"{STATE}/history.jsonl", "a") as h:
-    h.write(json.dumps({"ts": int(now), "iso": datetime.now().isoformat(timespec="seconds"),
-                        "mode": "live" if LIVE else "dry", "saturated": saturated,
-                        "counts": {k: {c: v for c, v in cc.items() if v} for k, cc in counts.items() if any(cc.values())},
-                        "actions": actions}) + "\n")
-
-open(f"{STATE}/last-run", "w").write(str(int(time.time())))
-if actions:
-    for a in actions:
-        print(a)
-else:
+if not CHECK:
+    with open(f"{STATE}/history.jsonl", "a") as h:
+        h.write(json.dumps({"ts": int(now), "iso": datetime.now().isoformat(timespec="seconds"),
+                            "mode": "live" if LIVE else "dry", "saturated": saturated,
+                            "counts": {k: {c: v for c, v in cc.items() if v} for k, cc in counts.items() if any(cc.values())},
+                            "actions": actions}) + "\n")
+    open(f"{STATE}/last-run", "w").write(str(int(time.time())))
+for a in actions:
+    print(a)
+if not actions:
     print("OK: no provider saturation")
+
+if CHECK:
+    # The report-only mode is the pre-flight: it answers "would this daemon have
+    # noticed today's failure?" without touching state. Nonzero = an active
+    # credential-invalid signal that is NOT cleared by a green root-key probe.
+    if auth_flagged:
+        print(f"CHECK: credential-invalid signal ACTIVE for: {', '.join(sorted(set(auth_flagged)))}")
+        raise SystemExit(1)
+    print("CHECK: no active credential-invalid signal")
 PY
