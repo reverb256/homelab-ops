@@ -1,31 +1,55 @@
 #!/usr/bin/env bash
-# Back up the arr config tier (media-config) to garage S3.
+# Back up the arr config tier (media-config) to garage S3 — CONSISTENTLY.
 #
-# Managed by homelab-ops/omarchy/nexus — installed by apply.sh to
-# /usr/local/bin/media-config-backup and driven by media-config-backup.timer.
+# Managed by homelab-ops/omarchy/nexus — installed to /usr/local/bin and driven
+# by media-config-backup.timer.
 #
-# WHY: these are live SQLite databases (radarr/sonarr/prowlarr/jellyfin/etc)
-# holding library metadata, indexer config and torrent queue state. They live on
-# /dev/nvme1n1 — a 240G Kingston labelled "nexus-cache" that is at 96% of its
-# RATED WRITE ENDURANCE, holds ~95GB of non-regenerable data, and has no
-# snapshot, no replica and (until this script) no backup anywhere.
+# WHY STAGING EXISTS (learned the hard way, 2026-09-22):
+# A direct `aws s3 sync` of this directory never completes. The arr configs are
+# LIVE SQLite databases that the running arr containers keep writing, and the
+# AWS CLI computes an object checksum and THEN streams the file. If the file
+# changes in between, garage rejects it:
 #
-# Credentials come from garage itself via the local admin socket, so this needs
-# no sops and no secret files on disk — and it survives key rotation, which is
-# exactly how the zephyr rclone remote silently broke on 2026-09-20.
+#   400 Bad Request, Invalid digest: Failed to validate checksum for algorithm
+#   Crc32: calculated Some(Crc32([49,132,81,210])),
+#            expected Crc32([200,173,192,163])
+#
+# Every such file fails and is retried forever, which pins the sync at roughly
+# one object per minute against a 20k-object source, and hammers the disk while
+# it does so. The fix is not a bigger timeout: a live SQLite file cannot be
+# uploaded consistently at all. Stage a consistent copy first.
+#
+#   - rsync everything EXCEPT the database files, their -wal/-shm sidecars,
+#     and regenerable caches (.cache, __pycache__, fontconfig caches). Caches
+#     are most of the 22k file count and none of the value.
+#   - for every source *.db, take an ONLINE consistent snapshot with sqlite3's
+#     backup API (mode=ro) rather than copying bytes under the writer.
+#   - sync only the staged tree, which is quiescent, so checksums always match.
+#
+# Credentials come from garage via the local admin socket: no secrets on disk,
+# and it survives key rotation (the 2026-09-20 rotation silently broke zephyr's
+# static rclone remote with a 403).
 set -euo pipefail
 
 SRC=/data/nvme1/media-config
 BUCKET=media-config
+# garage.toml sets api_bind_addr = "100.76.105.73:3900" — the S3 API listens
+# ONLY on the tailnet address. 127.0.0.1:3900 does not answer, so verifying
+# against loopback reports "could not connect" and looks like a broken backup
+# when the sync is healthy. Always verify against THIS url.
 ENDPOINT=http://100.76.105.73:3900
 KEYNAME=media-config-backup
 STAMP=$(date +%Y%m%d-%H%M%S)
 RETAIN=14
+# Stage on the SSD tier, never /tmp: /tmp is the LUKS root and the staged copy
+# is a few GB. /data/fast has ~464G free and is otherwise idle.
+STAGE_BASE=/data/fast/backup-stage
 
 command -v aws >/dev/null 2>&1 || { echo "aws cli missing" >&2; exit 2; }
+command -v sqlite3 >/dev/null 2>&1 || { echo "sqlite3 missing (needed for consistent db snapshots)" >&2; exit 2; }
 [[ -d "$SRC" ]] || { echo "source $SRC missing — is the 240G mounted?" >&2; exit 2; }
 
-# Refuse to back up an empty store. That is the signature of the 240G failing to
+# Refuse to back up an empty store: that is the signature of the 240G failing to
 # mount, and syncing it would report success while destroying the backup set.
 if [[ -z "$(find "$SRC" -type f -print -quit)" ]]; then
   echo "source $SRC is EMPTY — refusing to sync (240G not mounted?)" >&2
@@ -42,57 +66,79 @@ export AWS_DEFAULT_REGION=garage
 export AWS_RETRY_MODE=standard AWS_MAX_ATTEMPTS=8
 export AWS_EC2_METADATA_DISABLED=true
 
-# --- IO-pressure tuning (same rationale as memlawb-backup) ---
-# bcache0 is ~88% full with btrfs csum errors; peakminer + qbittorrent saturate
-# the same disks. Serialize uploads and cap bandwidth so garage's S3 handler is
-# not starved, and widen timeouts so one stalled object does not abort the sync.
+# Serialize uploads modestly. media-config is 20k SMALL files, so concurrency
+# hides per-request latency that one connection cannot — but keep it sane so the
+# S3 handler is not starved, since garage's data sits on bcache0, which the
+# monthly scrub also reads.
 AWS_CFG=$(mktemp)
 cat > "$AWS_CFG" <<'CFG'
 [default]
 s3 =
-  # 21,942 files in 5.1GB: concurrency hides per-request latency that a single
-  # connection cannot. Raised from 1 (which is right for the 274GB garage-store
-  # backup in memlawb-backup, and wrong here).
-  max_concurrent_requests = 16
+  max_concurrent_requests = 8
   max_bandwidth = 200MB/s
   use_accelerate_endpoint = false
   multipart_threshold = 64MB
   multipart_chunksize = 16MB
 CFG
 export AWS_CONFIG_FILE="$AWS_CFG"
-trap 'rm -f "$AWS_CFG"' EXIT
 
-# NOTE ON CONSISTENCY: the arr apps are running, so this is a LIVE copy of
-# SQLite databases. Each DB is synced together with its -wal and -shm, which is
-# the recoverable combination, but a write landing mid-copy can still yield a DB
-# that needs its WAL replayed. That is acceptable for a disaster-recovery point;
-# it is NOT a substitute for the quiesced copy taken during the planned move of
-# this tier off the worn drive. If a restore is needed, restore the WHOLE
-# directory, never a single .db in isolation.
+STAGE="$STAGE_BASE/$STAMP"
+mkdir -p "$STAGE"
+cleanup() { rm -f "$AWS_CFG"; rm -rf "$STAGE"; }
+trap cleanup EXIT
+
+echo "staging a consistent copy of $SRC -> $STAGE"
+
+# 1. everything except live db files, their sidecars, and regenerable caches.
+#    --db exclude patterns must not swallow the ./db-config style dirs, which is
+#    why they are anchored on the file suffix.
+rsync -a --delete \
+  --exclude '*.db' --exclude '*.db-wal' --exclude '*.db-shm' \
+  --exclude '*.sqlite' --exclude '*.sqlite-wal' --exclude '*.sqlite-shm' \
+  --exclude '.cache/' --exclude '__pycache__/' --exclude '*.pyc' \
+  --exclude 'cache/' --exclude 'transcodes/' --exclude 'logs/' \
+  "$SRC/" "$STAGE/"
+
+# 2. consistent online snapshots of every SQLite database. sqlite3's .backup
+#    uses the online backup API, so it is safe against a live writer, unlike a
+#    byte copy. mode=ro so a snapshot can never mutate the live database.
+n_db=0
+while IFS= read -r -d '' db; do
+  rel="${db#$SRC/}"
+  mkdir -p "$STAGE/$(dirname "$rel")"
+  if sqlite3 -readonly "file:$db?mode=ro" ".backup '$STAGE/$rel'" 2>/dev/null; then
+    n_db=$((n_db + 1))
+  else
+    # A database that cannot be snapshotted must not silently vanish from the
+    # backup — say so and keep the rest.
+    echo "WARN: could not snapshot $rel (left out)" >&2
+  fi
+done < <(find "$SRC" \( -name '*.db' -o -name '*.sqlite' \) -type f -print0)
+echo "  snapshotted $n_db database(s); staged $(find "$STAGE" -type f | wc -l) file(s)"
+
 sync_with_retry() {
   local src="$1" dst="$2" attempt sleep_s
   for attempt in 1 2 3 4 5 6 7 8; do
     if aws --endpoint-url "$ENDPOINT" s3 sync "$src" "$dst" \
-        --only-show-errors \
-        --no-progress \
-        --cli-connect-timeout 60 \
-        --cli-read-timeout 300; then
+        --only-show-errors --no-progress \
+        --cli-connect-timeout 60 --cli-read-timeout 300; then
       return 0
     fi
-    sleep_s=$((attempt * 30))
+    sleep_s=$((attempt * 15))
     echo "WARN: sync attempt $attempt failed ($src -> $dst); retrying in ${sleep_s}s" >&2
     sleep "$sleep_s"
   done
   return 1
 }
 
-sync_with_retry "$SRC" "s3://$BUCKET/current/"
-sync_with_retry "$SRC" "s3://$BUCKET/snapshots/$STAMP/"
+sync_with_retry "$STAGE" "s3://$BUCKET/current/"
+sync_with_retry "$STAGE" "s3://$BUCKET/snapshots/$STAMP/"
 
-# Verify by OBJECT COUNT, never by exit code.
+# Verify by OBJECT COUNT against the staged file count, never by exit code.
+staged=$(find "$STAGE" -type f | wc -l)
 n=$(aws --endpoint-url "$ENDPOINT" s3 ls "s3://$BUCKET/current/" --recursive | wc -l)
 [[ "$n" -gt 0 ]] || { echo "backup verified EMPTY — failing" >&2; exit 1; }
-echo "media-config backup ok: $n objects in current/, snapshot $STAMP"
+echo "media-config backup ok: $n objects in current/ (staged $staged), snapshot $STAMP"
 
 # Prune old snapshots, keeping the most recent $RETAIN.
 mapfile -t snaps < <(aws --endpoint-url "$ENDPOINT" s3 ls "s3://$BUCKET/snapshots/" \
