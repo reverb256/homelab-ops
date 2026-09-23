@@ -2,8 +2,15 @@
 # oci-a1-attempt — one bounded, idempotent attempt at the Always Free Ampere A1
 # (VM.Standard.A1.Flex, 2 OCPU / 12 GB) in ca-toronto-1.
 #
-# Quiet by design: capacity is normally unavailable, and that is not an event worth
-# alerting on. Loud exactly once: when the instance is actually claimed.
+# Quiet by design: capacity is normally unavailable and that is not an event worth alerting on.
+# Loud exactly once: when the instance is actually claimed.
+#
+# FAILURE DISCIPLINE (learned the hard way, see the 2026-09-23 10:25 latch bug):
+#   * A command that FAILS must never be read as a result. Every query checks its exit status
+#     first, and a failed guard exits NON-ZERO WITHOUT latching — so a broken probe can never
+#     silently disable the job. Disabling this job requires positive evidence, nothing else.
+#   * The latch is set ONLY when an A1 is positively identified, or when a launch response
+#     containing an instance id is on disk.
 set -uo pipefail
 LOG=/var/log/oci-a1-attempt.log
 STATE=/home/j_kro/.oci/.a1-claimed
@@ -14,36 +21,65 @@ export PYTHONWARNINGS=ignore SUPPRESS_LABEL_WARNING=True
 
 log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" | sudo tee -a "$LOG" >/dev/null; }
 alert() {
-  local msg="$1"
   curl -s -m 5 -X POST -H 'Content-Type: application/json' \
-    -d "{\"source\":\"oci-a1-attempt\",\"severity\":\"info\",\"message\":\"$msg\"}" \
+    -d "{\"source\":\"oci-a1-attempt\",\"severity\":\"info\",\"message\":\"$1\"}" \
     http://10.1.1.120:9799/alerts >/dev/null 2>&1 || true
 }
 
-# latch: already claimed at some point — do nothing, forever
+# latch: an A1 was positively claimed earlier — do nothing, forever
 [ -e "$STATE" ] && exit 0
 
-# guard: does an A1 already exist (however it was created)? never make a second
-existing="$("$OCI" compute instance list -c "$TEN" --shape VM.Standard.A1.Flex --raw-output \
-  --query 'data[?lifecycle-state!=`TERMINATED`].display-name' 2>/dev/null | tr -d '[]",' | tr '\n' ' ' | xargs)"
-if [ -n "$existing" ]; then
-  touch "$STATE"
-  log "A1 already present ('$existing') — latch set, no further attempts"
-  alert "A1 already present: $existing"
-  exit 0
+# ---- guard: does an A1 already exist? -------------------------------------
+# Do NOT filter with a CLI option: `--shape` does not exist and its error text was
+# previously mistaken for a result (which latched the job off). Ask for JSON, check rc, parse.
+out="$("$OCI" compute instance list -c "$TEN" --output json 2>/dev/null)"
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  log "GUARD FAILED (oci list rc=$rc) — NOT latching; will retry next hour"
+  exit 1
 fi
+existing="$(printf '%s' "$out" | /usr/bin/python3 -c '
+import json,sys
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print("PARSE-FAIL"); raise SystemExit(0)
+names = [i.get("display-name") or i.get("display_name")
+         for i in (d.get("data") or [])
+         if (i.get("shape") == "VM.Standard.A1.Flex"
+             and (i.get("lifecycle-state") or "").upper() != "TERMINATED")]
+print(",".join([n for n in names if n]))
+')"
+case "$existing" in
+  PARSE-FAIL)
+    log "GUARD FAILED (unparseable instance list) — NOT latching; will retry next hour"
+    exit 1 ;;
+  "")
+    : ;;   # no A1: proceed
+  *)
+    touch "$STATE"
+    log "A1 already present ('$existing') — latch set deliberately, no further attempts"
+    alert "A1 already present: $existing"
+    exit 0 ;;
+esac
 
-# one bounded attempt window, well inside the hour
+# ---- one bounded attempt window, well inside the hour ----------------------
 timeout 2400 /usr/local/bin/oci-a1-gated >>"$LOG" 2>&1
 rc=$?
 
-if [ -s /tmp/oci_launch_ok.json ]; then
+# success requires POSITIVE evidence: a launch response with an instance id
+if [ -s /tmp/oci_launch_ok.json ] && /usr/bin/python3 -c '
+import json,sys
+try: d=json.load(open("/tmp/oci_launch_ok.json"))
+except Exception: sys.exit(1)
+sys.exit(0 if (d.get("data") or {}).get("id") else 1)
+' 2>/dev/null; then
   cp -f /tmp/oci_launch_ok.json /home/j_kro/.oci/a1-claimed.json 2>/dev/null
   chmod 600 /home/j_kro/.oci/a1-claimed.json 2>/dev/null
   touch "$STATE"
-  log "CLAIMED: $NAME launched — response in ~/.oci/a1-claimed.json (rc=$rc)"
-  alert "A1 CLAMMED: $NAME (2 OCPU / 12 GB, ca-toronto-1) launched — bootstrap not run, awaiting wiring"
+  log "CLAIMED: $NAME launched (rc=$rc) — response in ~/.oci/a1-claimed.json; bootstrap NOT run, awaiting wiring"
+  alert "A1 CLAIMED: $NAME (2 OCPU / 12 GB, ca-toronto-1) launched — not bootstrapped yet"
 else
-  log "no capacity this hour (rc=$rc) — capacity-gated, no launch attempted or refused"
+  log "no capacity this hour (inner rc=$rc) — gate held, no launch attempted"
 fi
 exit 0
