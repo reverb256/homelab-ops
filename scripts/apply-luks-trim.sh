@@ -4,8 +4,9 @@
 #
 #   sudo scripts/apply-luks-trim.sh
 #
-# The whole fleet, from zephyr or nexus:
-#   for h in sentry forge nexus; do ssh "$h" sudo /home/j_kro/homelab-ops/scripts/apply-luks-trim.sh; done
+# The whole fleet, from zephyr or nexus — piped, because only nexus keeps a checkout
+# of this repo and the script needs nothing from it on the target:
+#   for h in sentry forge nexus; do ssh "$h" sudo bash -s < scripts/apply-luks-trim.sh; done
 #
 # WHY THESE TOKENS. Omarchy's effective initramfs hook is `encrypt`, selected by
 # /etc/mkinitcpio.conf.d/omarchy_hooks.conf, which OVERRIDES the `systemd` hooks in
@@ -68,3 +69,4 @@ if ! limine-entry-tool --tree 2>/dev/null | grep -q "$KERNEL.efi"; then
 fi
 
 echo "staged: active at the next boot. rollback: cp -a $LIMINE.pre-luks-trim $LIMINE && limine-mkinitcpio $KERNEL"
+
