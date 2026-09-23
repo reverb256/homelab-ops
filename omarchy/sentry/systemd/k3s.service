@@ -1,0 +1,71 @@
+[Unit]
+Description=k3s server (join nexus)
+After=network-online.target
+Wants=network-online.target
+StartLimitBurst=3
+StartLimitIntervalSec=5min
+
+[Service]
+Type=simple
+Environment="CONTAINERD_NRI_DISABLED=1"
+ExecStart=/usr/local/bin/k3s server \
+  --server=https://10.1.1.120:6443 \
+  --token-file /var/lib/rancher/k3s/server/token \
+  --node-name=sentry-agent \
+  --node-ip=10.1.1.140 \
+  --data-dir=/var/lib/rancher/k3s \
+  --cluster-cidr=10.42.0.0/16 \
+  --service-cidr=10.43.0.0/16 \
+  --cluster-dns=10.43.0.10 \
+  --write-kubeconfig-mode=644 \
+  --disable=traefik \
+  --disable=metrics-server \
+  --disable=servicelb \
+  --flannel-backend=none \
+  --tls-san=10.1.1.100 \
+  --tls-san=10.1.1.110 \
+  --tls-san=10.1.1.120 \
+  --tls-san=10.1.1.130 \
+  --tls-san=10.1.1.140 \
+  --tls-san=nexus \
+  --tls-san=forge \
+  --tls-san=sentry \
+  --tls-san=cluster.local \
+  --tls-san=localhost \
+  --tls-san=127.0.0.1 \
+# 2026-09-15: RE-ENABLED — encryption restored cluster-wide (aescbc, same key as nexus/forge).
+  --kube-apiserver-arg=encryption-provider-config=/var/lib/rancher/k3s/server/cred/encryption-config.yaml  \
+  --kube-apiserver-arg=audit-policy-file=/var/lib/rancher/k3s/server/audit-policy.yaml \
+  --kube-apiserver-arg=audit-log-path=/var/lib/rancher/k3s/server/logs/audit.log \
+  --kube-apiserver-arg=audit-log-format=json \
+  --kube-apiserver-arg=audit-log-maxage=7 \
+  --kube-apiserver-arg=audit-log-maxsize=100 \
+  --kube-apiserver-arg=audit-log-maxbackup=10 \
+  --etcd-arg=auto-compaction-mode=periodic \
+  --etcd-arg=auto-compaction-retention=5m \
+  --etcd-snapshot-retention=10 \
+  --etcd-snapshot-compress \
+  --etcd-expose-metrics \
+  --etcd-snapshot-schedule-cron="0 */6 * * *" \
+  --etcd-s3 \
+  --etcd-s3-endpoint=100.76.105.73:3900 \
+  --etcd-s3-region=garage \
+  --etcd-s3-bucket=k3s-etcd \
+  --etcd-s3-access-key=GKa75e6a71911a9a0d3ac6dd32 \
+  --etcd-s3-secret-key=523ef0d5330b5fa37fc152d24958022abc7fdb135409cbf5d1c6d83de9109c22 \
+  --etcd-s3-insecure \
+  --etcd-s3-skip-ssl-verify \
+  --kube-controller-manager-arg=terminated-pod-gc-threshold=500 \
+  --kube-controller-manager-arg=node-monitor-grace-period=40s \
+  --disable-network-policy \
+  --kubelet-arg=authentication-token-webhook=true \
+  --kubelet-arg=node-status-update-frequency=10s \
+  --kubelet-arg=authorization-mode=Webhook
+ExecReload=/bin/kill -s HUP $MAINPID
+TimeoutStartSec=0
+Restart=on-failure
+RestartSec=5
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
