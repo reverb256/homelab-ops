@@ -49,3 +49,34 @@ backup anywhere may depend on it. Enforced and verified 2026-09-22:
 Backups belong on **nexus** (memlawb, haven, activepieces, media-config) and
 **sentry** (gitlawb), pushing to Garage S3 on nexus. If you find yourself
 reaching for zephyr to move backup data, the design is wrong.
+## What zephyr may run (passive-only allowlist)
+
+zephyr is a **workstation**. Standing directive: *nothing is moved to zephyr* —
+no websites, APIs, timers of its own, autonomous processes, hosted workloads or
+moved data. Enforced by gate **G15** in `trading/scripts/check-zephyr-passive-only.sh`
+(`bash scripts/check-zephyr-passive-only.sh`), which FAILS and names the offender.
+
+Allowed to listen / be enabled here, and nothing else:
+
+| Listener / unit | Why it is allowed |
+|---|---|
+| `sshd`, `tailscaled` | remote login + tailnet — the only ingress a workstation needs |
+| `k3s-agent` (+ kubelet/containerd endpoints) | this host is also a cluster node |
+| `avahi-daemon`, `cups`, `ckb-next`, `udisks2`, `pcscd`, gpg/dirmngr | desktop stack + stock plumbing |
+| `hermes` (tailnet 9900) | the agent runtime itself |
+| any **cluster pod** (cgroup under `/kubepods`) — `llama-*`, `peakminer-*`, `node-exporter`, MetalLB `speaker`, calico `bird` | workloads the cluster schedules; the sanctioned path for anything that must serve |
+
+Removed from this host on 2026-09-23 (each was a departure from the directive):
+
+- `content-lan-approval.service` + `nginx` + the `content.lan`/`dashboard.lan`
+  vhosts and `/opt/content-site` — the site, its dashboard and the approval API
+  now run in the cluster (`sites/content-site`, chart `sites-k8s/helm/charts/content-site`);
+- `smartmon-textfile.timer`/`.service` and `smartd` — SMART telemetry for this
+  host is now **pulled** from nexus (`smartmon-remote-pull.timer`), which ships
+  the collector over ssh and imports it into vmsingle. Nothing is installed here;
+- `docker.socket` + `docker.service` — disabled. Docker remains a build-time
+  tool (start the socket explicitly when building an image for `nexus:5000`);
+  it must never be enabled: it would be an on-demand daemon nobody asked for.
+
+`apply.sh` owns everything this host legitimately declares. It must NOT grow a
+website, a timer or a daemon: add it to the cluster instead, or G15 fails.
