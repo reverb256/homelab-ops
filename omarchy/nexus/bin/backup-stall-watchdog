@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# backup-stall-watchdog — turn a SILENT backup hang into a visible failure.
+# backup-stall-watchdog — turn a SILENT backup hang — and now a SILENT backup
+# FAILURE — into something a human or an agent will actually see.
 #
 # WHY THIS EXISTS (2026-09-22)
 # The stampede backup sat in systemd state `activating` for hours doing ZERO
@@ -8,43 +9,137 @@
 # failing. systemd reported `activating`, which reads as healthy. Nothing would
 # ever have alerted — the job just never finished.
 #
-# This kills a backup stuck in `activating` past STALL_MIN so it flips to
-# `failed` (Result=exit-code) — a state that monitors and humans both see.
+# WHY IT WAS EXTENDED (silent-failure sweep, 2026-09-22, same day)
+# The stall guard converted hangs into FAILURES — and nothing read the failures:
+#   nexus media-config-backup.service  Result=exit-code  ActiveState=failed
+#   since 2026-09-22 12:38:57, no reader, no alert, no page.
+# The static unit list was also 3 units long while the host runs 7 backups
+# (memlawb, haven, stampede, media-config, activepieces, trading, gitlawb), so a
+# stall in an unlisted backup was still silent. A backup that FAILS and a backup
+# that HANGS are the same class of defect: the restore you are counting on is not
+# there, and everything reports green.
+#
+# What v2 adds
+#   1. Failure reporting for ANY failed unit matching *backup* — discovered from
+#      systemd, not from a static list, so a backup added tomorrow is covered the
+#      day it appears. The static list stays as the STALL scan list.
+#   2. A fleet-alert push to the same receiver vmalert/verify-fleet use
+#      (nexus:9799) so the failure reaches the agent, not just the journal.
+#   3. A non-zero exit when it reports anything: the watchdog's own unit then
+#      shows `failed`, which is what NodeSystemdServiceFailed watches.
+#   4. DRY_RUN=1 (report only, kill nothing) for tests.
 #
 # Usage:
-#   backup-stall-watchdog            # scan and kill stalled units
+#   backup-stall-watchdog            # scan, kill stalled units, report failures
 #   backup-stall-watchdog --selftest # prove the detection logic (positive AND
 #                                    # negative controls), prints WATCHDOG_DETECTS
+#   DRY_RUN=1 backup-stall-watchdog  # report only
 set -euo pipefail
 
 STALL_MIN=${STALL_MIN:-90}
-UNITS=(stampede-backup media-config-backup haven-backup)
+ALERT_URL=${ALERT_URL:-http://127.0.0.1:9799/alerts}
+DRY_RUN=${DRY_RUN:-0}
+# Known backups: the STALL scan list. Failure reporting is discovery-based and is
+# NOT limited to this list (see discover_failed_backups).
+UNITS=(memlawb-backup haven-backup stampede-backup media-config-backup \
+       activepieces-backup trading-backup gitlawb-backup)
+
+# A service counts as a backup if its name matches this or is in UNITS.
+is_backup_unit(){
+  local n="$1"
+  case "$n" in *backup*) return 0 ;; esac
+  local u
+  for u in "${UNITS[@]}"; do [ "$n" = "$u.service" ] && return 0; done
+  return 1
+}
 
 # Returns 0 (stalled) only for a unit still `activating` past the threshold.
-# A finished unit (inactive) or an already-failed unit is never flagged: killing
-# those would either be pointless or mask a real failure.
+# A finished unit (inactive) or an already-failed unit is never flagged for
+# KILLING: killing those would either be pointless or mask a real failure.
+# Failures are a separate, non-destructive report.
 detect(){
   local st="$1" mins="$2"
   [ "$st" = "activating" ] && [ "${mins:-0}" -ge "$STALL_MIN" ]
 }
 
+unit_field(){  # unit_field <unit.service> <property> [--user]
+  local u="$1" p="$2" scope="${3:-}"
+  if [ "$scope" = "--user" ]; then
+    systemctl --user show -p "$p" --value "$u" 2>/dev/null || true
+  else
+    systemctl show -p "$p" --value "$u" 2>/dev/null || true
+  fi
+}
+
+# Every loaded service whose name looks like a backup, regardless of scope.
+# Prints "<unit> <scope>" one per line. The static UNITS list is the floor, not the
+# ceiling: a backup added tomorrow is scanned the day it appears.
+discover_backup_units(){
+  {
+    local scope u
+    for scope in "" "--user"; do
+      [ "$scope" = "--user" ] && ! systemctl --user list-units >/dev/null 2>&1 && continue
+      systemctl $scope list-units --all --type=service --plain --no-legend 2>/dev/null \
+        | awk 'NF{print $1}' | while read -r u; do
+            [ -z "$u" ] && continue
+            case "$u" in *.service) ;; *) u="$u.service" ;; esac
+            is_backup_unit "$u" && echo "$u ${scope:-system}"
+          done
+    done
+    local k
+    for k in "${UNITS[@]}"; do
+      systemctl show -p LoadState --value "$k.service" 2>/dev/null | grep -q not-found || echo "$k.service system"
+    done
+  } | sort -u
+}
+
+# Every failed service whose name looks like a backup, regardless of scope.
+# Prints "<unit> <scope>" one per line.
+discover_failed_backups(){
+  local scope line u
+  for scope in "" "--user"; do
+    [ "$scope" = "--user" ] && ! systemctl --user list-units >/dev/null 2>&1 && continue
+    # shellcheck disable=SC2086
+    systemctl $scope list-units --type=service --state=failed --plain --no-legend 2>/dev/null \
+      | awk 'NF{print $1}' | while read -r u; do
+          [ -z "$u" ] && continue
+          case "$u" in *.service) ;; *) u="$u.service" ;; esac
+          is_backup_unit "$u" && echo "$u ${scope:-system}"
+        done
+  done
+}
+
+push_alerts(){
+  local payload="$1"
+  if [ "$DRY_RUN" = "1" ]; then echo "DRY_RUN: would post to $ALERT_URL"; return 0; fi
+  printf '%s' "$payload" | curl -s -m 10 -X POST -H 'Content-Type: application/json' \
+    --data-binary @- "$ALERT_URL" >/dev/null 2>&1 \
+    && echo "(posted to the fleet alert feed)" || echo "(alert feed unreachable — logged only)"
+}
+
 selftest(){
-  # positive control: a long-running activating unit MUST be detected
+  # positive control: a long-running activating unit MUST be detected for a kill
   if ! detect activating 120; then
     echo "SELFTEST FAILED: missed activating/120 (positive control)" >&2; exit 1
   fi
-  # negative controls: each of these must NOT be flagged
+  # negative controls: each of these must NOT be flagged for a kill
   if detect inactive 500; then
     echo "SELFTEST FAILED: flagged a finished unit" >&2; exit 1
   fi
   if detect failed 500; then
-    echo "SELFTEST FAILED: flagged an already-failed unit" >&2; exit 1
+    echo "SELFTEST FAILED: flagged an already-failed unit for a KILL (failures are reported, never killed)" >&2; exit 1
   fi
   if detect activating 5; then
     echo "SELFTEST FAILED: flagged a young unit" >&2; exit 1
   fi
   if detect activating $((STALL_MIN - 1)); then
     echo "SELFTEST FAILED: flagged one minute under threshold" >&2; exit 1
+  fi
+  # name classification controls: coverage must not depend on a static list
+  is_backup_unit "some-new-backup.service" || { echo "SELFTEST FAILED: a *backup* unit name must be covered (discovery, not a static list)" >&2; exit 1; }
+  is_backup_unit "activepieces-backup.service" || { echo "SELFTEST FAILED: known unit not classified as a backup" >&2; exit 1; }
+  if is_backup_unit "jellyfin.service"; then
+    echo "SELFTEST FAILED: a non-backup unit was classified as a backup" >&2; exit 1
   fi
   echo "WATCHDOG_DETECTS"
 }
@@ -55,24 +150,61 @@ if [ "${1:-}" = "--selftest" ]; then
 fi
 
 now=$(date +%s)
-fired=0
-for u in "${UNITS[@]}"; do
-  st=$(systemctl is-active "$u.service" 2>/dev/null || true)
-  if [ "$st" != "activating" ]; then
-    continue
-  fi
-  ts=$(systemctl show -p ActiveEnterTimestamp --value "$u.service" 2>/dev/null || true)
-  if [ -z "$ts" ] || [ "$ts" = "n/a" ]; then
-    continue
-  fi
+killed=0
+failures=0
+msgs=""
+
+# ---- 1. FAILED backups: report (never kill) -----------------------------------
+while read -r unit scope; do
+  [ -z "${unit:-}" ] && continue
+  res=$(unit_field "$unit" Result "$scope")
+  since=$(unit_field "$unit" ExecMainExitTimestamp "$scope")
+  fails=$(unit_field "$unit" NRestarts "$scope")
+  line="ALERT: [BACKUP-FAILED] $unit ($scope) Result=$res since=${since:-unknown} restarts=${fails:-?}"
+  logger -t backup-stall-watchdog "$line"
+  echo "$line"
+  msgs="$msgs$unit($scope) "
+  failures=$((failures + 1))
+done < <(discover_failed_backups)
+
+# ---- 2. STALLED backups: kill so they flip to visible `failed` ----------------
+# Discovered set (not the static list), so a new backup cannot be born unwatched.
+while read -r u scope; do
+  [ -z "${u:-}" ] && continue
+  st=$(unit_field "$u" ActiveState "$scope")
+  [ "$st" = "activating" ] || continue
+  ts=$(unit_field "$u" ActiveEnterTimestamp "$scope")
+  [ -n "$ts" ] && [ "$ts" != "n/a" ] || continue
   start_s=$(date -d "$ts" +%s 2>/dev/null || echo 0)
   mins=$(( (now - start_s) / 60 ))
   if detect "$st" "$mins"; then
     logger -t backup-stall-watchdog \
       "ALERT: $u stuck in activating ${mins}min (> ${STALL_MIN}) — killing so it reports failed"
     echo "ALERT: $u stalled ${mins}min (> ${STALL_MIN}) — killing"
-    systemctl kill --signal=SIGTERM "$u.service" 2>/dev/null || true
-    fired=$((fired + 1))
+    if [ "$DRY_RUN" = "1" ]; then
+      echo "DRY_RUN: would kill $u"
+    else
+      if [ "$scope" = "--user" ]; then systemctl --user kill --signal=SIGTERM "$u" 2>/dev/null || true
+      else systemctl kill --signal=SIGTERM "$u" 2>/dev/null || true; fi
+    fi
+    msgs="$msgs$u(stalled) "
+    killed=$((killed + 1))
   fi
-done
-echo "watchdog: scanned ${#UNITS[@]} unit(s), killed $fired stalled unit(s)"
+done < <(discover_backup_units)
+
+scanned=$(discover_backup_units | wc -l | tr -d ' ')
+echo "watchdog: scanned $scanned discovered backup unit(s), killed $killed stalled, reported $failures failed"
+
+if [ "$killed" -gt 0 ] || [ "$failures" -gt 0 ]; then
+  payload=$(python3 - "$killed" "$failures" "$msgs" <<'PY'
+import json,sys
+print(json.dumps({"alerts":[{"status":"firing","labels":{
+    "alertname":"BackupNotRestorable","severity":"warning","component":"backup-stall-watchdog"},
+    "annotations":{"summary":f"backup problem: {sys.argv[1]} stalled (killed), {sys.argv[2]} failed: {sys.argv[3]}"}}]}))
+PY
+)
+  push_alerts "$payload"
+  # non-zero exit => this unit itself shows `failed`, which NodeSystemdServiceFailed watches
+  exit 1
+fi
+exit 0
