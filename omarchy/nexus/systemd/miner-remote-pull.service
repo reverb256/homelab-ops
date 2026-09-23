@@ -1,0 +1,21 @@
+[Unit]
+Description=Pull miner telemetry from hosts that must run no timers of their own (zephyr)
+Documentation=file:/home/j_kro/mining-k8s/docs/miner-telemetry.md
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Runs as j_kro, not root: the KUBECONFIG and the ssh identity that reaches
+# zephyr both live in j_kro's context — root on nexus has neither (root's ssh to
+# zephyr fails host-key verification, and there is no /root/.kube/config).
+# Nothing is installed, started or written on zephyr: the collector is shipped
+# over ssh on stdin and the derived share-rate state stays in $MINER_STATE_DIR
+# here on nexus.
+User=j_kro
+Environment=KUBECONFIG=/home/j_kro/.kube/config
+Environment=MINER_STATE_DIR=/home/j_kro/.local/state/miner-remote-pull
+ExecStart=/usr/local/bin/miner-remote-pull
+# Same shape as smartmon-remote-pull: a steady background reporter, kept off the
+# critical path (this one ssh's to a workstation that is also a desktop).
+Nice=10
+IOSchedulingClass=idle
