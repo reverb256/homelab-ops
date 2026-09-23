@@ -10,7 +10,7 @@ ContainerName=gitlawb-node
 # read the new digest, bump it here, re-apply (see README).
 Image=ghcr.io/gitlawb/node@sha256:29193f3a675bcc8effdb87d1e7056139352d174ca348f305dfcdfeedeb0f8390
 Network=gitlawb.network
-PublishPort=10.1.1.140:7545:7545
+PublishPort=7545:7545
 Volume=/srv/gitlawb/data:/data
 EnvironmentFile=/srv/gitlawb/gitlawb.env
 Environment=GITLAWB_HOST=0.0.0.0
@@ -29,3 +29,4 @@ TimeoutStartSec=120
 
 [Install]
 WantedBy=multi-user.target
+
