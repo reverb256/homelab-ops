@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# oci-a1-attempt — one bounded, idempotent attempt at the Always Free Ampere A1
+# (VM.Standard.A1.Flex, 2 OCPU / 12 GB) in ca-toronto-1.
+#
+# Quiet by design: capacity is normally unavailable, and that is not an event worth
+# alerting on. Loud exactly once: when the instance is actually claimed.
+set -uo pipefail
+LOG=/var/log/oci-a1-attempt.log
+STATE=/home/j_kro/.oci/.a1-claimed
+OCI=/home/j_kro/.oci/venv/bin/oci
+TEN=ocid1.tenancy.oc1..aaaaaaaaagggbwndtjlzcuywprjbit6d6ybwcu5qbt746bqelluju5szu6uq
+NAME=reverb256-edge-01
+export PYTHONWARNINGS=ignore SUPPRESS_LABEL_WARNING=True
+
+log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" | sudo tee -a "$LOG" >/dev/null; }
+alert() {
+  local msg="$1"
+  curl -s -m 5 -X POST -H 'Content-Type: application/json' \
+    -d "{\"source\":\"oci-a1-attempt\",\"severity\":\"info\",\"message\":\"$msg\"}" \
+    http://10.1.1.120:9799/alerts >/dev/null 2>&1 || true
+}
+
+# latch: already claimed at some point — do nothing, forever
+[ -e "$STATE" ] && exit 0
+
+# guard: does an A1 already exist (however it was created)? never make a second
+existing="$("$OCI" compute instance list -c "$TEN" --shape VM.Standard.A1.Flex --raw-output \
+  --query 'data[?lifecycle-state!=`TERMINATED`].display-name' 2>/dev/null | tr -d '[]",' | tr '\n' ' ' | xargs)"
+if [ -n "$existing" ]; then
+  touch "$STATE"
+  log "A1 already present ('$existing') — latch set, no further attempts"
+  alert "A1 already present: $existing"
+  exit 0
+fi
+
+# one bounded attempt window, well inside the hour
+timeout 2400 /usr/local/bin/oci-a1-gated >>"$LOG" 2>&1
+rc=$?
+
+if [ -s /tmp/oci_launch_ok.json ]; then
+  cp -f /tmp/oci_launch_ok.json /home/j_kro/.oci/a1-claimed.json 2>/dev/null
+  chmod 600 /home/j_kro/.oci/a1-claimed.json 2>/dev/null
+  touch "$STATE"
+  log "CLAIMED: $NAME launched — response in ~/.oci/a1-claimed.json (rc=$rc)"
+  alert "A1 CLAMMED: $NAME (2 OCPU / 12 GB, ca-toronto-1) launched — bootstrap not run, awaiting wiring"
+else
+  log "no capacity this hour (rc=$rc) — capacity-gated, no launch attempted or refused"
+fi
+exit 0

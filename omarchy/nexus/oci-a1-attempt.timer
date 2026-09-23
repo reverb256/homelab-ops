@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly attempt at the Always Free A1 capacity window
+
+[Timer]
+OnCalendar=hourly
+AccuracySec=1min
+RandomizedDelaySec=90
+Persistent=false
+
+[Install]
+WantedBy=timers.target
