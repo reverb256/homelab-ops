@@ -76,7 +76,7 @@ for hostdir in "$OMARCHY"/*/; do
     fi
     want="$(sha256sum "$f" 2>/dev/null | cut -d' ' -f1 | tr -d '\\')"
     if [ "$local_host" = 1 ]; then
-      have="$(sudo sha256sum "$dst" 2>/dev/null | cut -d' ' -f1)"
+  have="$(sudo sha256sum "$dst" 2>/dev/null | cut -d' ' -f1 | tr -d '\\')"
     else
       have="$(ssh $SSH_OPTS "$host" "sudo sha256sum '$dst' 2>/dev/null" 2>/dev/null | cut -d' ' -f1 | tr -d '\\')"
     fi
