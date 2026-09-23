@@ -7,8 +7,8 @@
 # v1 was wrong: it treated `verify.done` (the *verification* pass) as "prune complete"
 # and announced success with 452G free = the unchanged baseline, i.e. nothing reclaimed.
 set +e
-STATE=/home/j_kro/.cache/storage-watch.state
-PRUNEDIR=/home/j_kro/prune-20260923
+STATE=${STORAGE_WATCH_STATE:-/home/j_kro/.cache/storage-watch.state}
+PRUNEDIR=${STORAGE_WATCH_DIR:-/home/j_kro/prune-20260923}
 mkdir -p /home/j_kro/.cache
 ALERTS=()
 
