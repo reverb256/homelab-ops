@@ -14,18 +14,7 @@ Upstream: issue #2229 (declined by the maintainer as "not needed on modern nvmes
 :allow-discards,no-read-workqueue,no-write-workqueue
 ```
 
-Why those exact tokens: Omarchy's **effective** initramfs hook is `/usr/lib/initcpio/hooks/encrypt`, selected by the drop-in `/etc/mkinitcpio.conf.d/omarchy_hooks.conf`, which **overrides** the `systemd` hooks listed in `/etc/mkinitcpio.conf`. That hook's option parser whitelists:
-
-```
-allow-discards|discard                        -> --allow-discards
-no-read-workqueue|perf-no_read_workqueue      -> --perf-no_read_workqueue
-no-write-workqueue|perf-no_write_workqueue    -> --perf-no_write_workqueue
-sector-size=*                                 -> --sector-size
-```
-
-and ignores anything unknown with a warning, so this edit cannot make a host unbootable.
-
-`crypttab(5)` names are **not** the contract here — Omarchy does not use the systemd unlock path. crypttab(5) on systemd 261 documents `discard` / `no-read-workqueue` / `no-write-workqueue` and has **zero** mentions of `allow-discards`, which is why the hook source, not the man page, was used as the authority.
+Why those tokens, and which parser to trust, is recorded once in the `omarchy-boot-config` skill and in the header of `scripts/apply-luks-trim.sh` — do not re-derive it here. Short version: Omarchy's effective hook is `encrypt` (via the `omarchy_hooks.conf` drop-in, which overrides the `systemd` hooks in `/etc/mkinitcpio.conf`) and its parser whitelists exactly these three names.
 
 `/etc/default/limine` is owned by **no package** (verified: `pacman -Qo` returns "No package owns"), so an update cannot revert it, and hand-editing it is the mechanism Omarchy's own migration 1789325478 uses (`sed`/`tee` + `limine-mkinitcpio` + `limine-entry-tool --tree` verification).
 
@@ -62,3 +51,4 @@ This is the same change the upstream PR implements as a migration. Because that 
 ## Repro script
 
 `stage-trim-options.sh` in this directory performs the staged change with guards: it aborts if the config is missing, if there is no `cryptdevice=`, if the option is already present (idempotent no-op), if Secure Boot is enabled (a rebuilt UKI would need re-signing), if `/boot` has under 200 MB free, if the running kernel is not an omarchy kernel, or if the kernel package is absent. It backs up the config to `pre-trim-<timestamp>` and refuses to report success unless the boot entry exists after the rebuild.
+
