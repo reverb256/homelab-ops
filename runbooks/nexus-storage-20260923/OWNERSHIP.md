@@ -57,3 +57,9 @@ layout, read the evidence above first: the source device is healthy and the data
 - The **maintenance window** for P3 (media stack down, ArgoCD self-heal suspended).
 - The **fate of the 85 G hold tree** — needed if the tier is repartitioned, garbage if not.
 - Any media deletion beyond the measured leftovers under `/data/media/downloads`.
+
+## Contested resource: /dev/sdb (added 2026-09-23)
+
+P3 (bcache0 cache re-attach) and FAST-TIER-PLAN.md both claim sdb and cannot both have it.
+Reconciliation, evidence and recommendation are in FAST-TIER-PLAN.md; P3 is GATED on the owner
+choosing replace-vs-prune for the 4 TB volume. P1 (prune) is unaffected and can proceed.
