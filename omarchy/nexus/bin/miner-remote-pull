@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+# miner-remote-pull — PULL miner telemetry from a host that must run no timers of
+# its own, and import it into VictoriaMetrics.
+#
+# Why: peakminer's API binds 127.0.0.1 ONLY, so the collector has to run where the
+# miner's loopback is. For nexus and forge that is the miner-telemetry DaemonSet
+# pod (hostNetwork, scraped by vmagent). zephyr is a workstation and the standing
+# directive is that nothing is installed or hosted there, so its two miners
+# (21553, 21554) are covered from nexus — the same inversion smartmon-remote-pull
+# already uses for zephyr's disks:
+#
+#   ssh zephyr python3 - --once --host zephyr --ports 21553,21554 < adapter.py
+#
+# The adapter itself is read from the cluster ConfigMap that serves the DaemonSet
+# (ns mining, miner-telemetry-adapter), so the pod path and this path can never
+# disagree about what a miner_* series means. Nothing is written on the target:
+# the share-rate window this needs is kept HERE, in $STATE_DIR, and handed to the
+# remote adapter as an argument on the next run.
+#
+# Runs every 2 min from miner-remote-pull.timer. 2 min, not smartmon's 5: these
+# series feed a shares/hour alert, and a 5-min push into a 5-min instant-vector
+# lookback leaves the window empty between pushes (the rule would flap).
+set -uo pipefail
+
+TARGETS="${MINER_TARGETS:-zephyr}"
+PORTS="${MINER_PORTS:-21553,21554}"
+KUBECONFIG="${KUBECONFIG:-/home/j_kro/.kube/config}"
+STATE_DIR="${MINER_STATE_DIR:-/home/j_kro/.local/state/miner-remote-pull}"
+FALLBACK_DIR="${MINER_FALLBACK_DIR:-/home/j_kro/.local/state/miner-remote-pull/raw}"
+NAMESPACE="${MINER_NAMESPACE:-mining}"
+CONFIGMAP="${MINER_ADAPTER_CONFIGMAP:-miner-telemetry-adapter}"
+export KUBECONFIG
+
+# Same shape as the node-exporter labels these series must live beside: job says
+# which contract produced them, collector says which path (pod vs pull).
+PROVENANCE='job="miner-telemetry",collector="miner-remote-pull"'
+
+vm_url() {
+  if [ -n "${VM_IMPORT_URL:-}" ]; then printf '%s' "$VM_IMPORT_URL"; return 0; fi
+  local ip
+  ip="$(kubectl -n monitoring get svc vmsingle-vmstack-victoria-metrics-k8s-stack \
+        -o jsonpath='{.spec.clusterIP}' 2>/dev/null)"
+  [ -n "$ip" ] && printf 'http://%s:8428/api/v1/import/prometheus' "$ip"
+}
+
+# The adapter is the ConfigMap's own copy of files/adapter.py in
+# mining-k8s helm/charts/miner-telemetry — one source of truth, read at run time.
+adapter_source() {
+  kubectl -n "$NAMESPACE" get configmap "$CONFIGMAP" -o json 2>/dev/null | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin).get("data") or {}
+except Exception:
+    sys.exit(1)
+sys.stdout.write(data.get("adapter.py") or "")
+'
+}
+
+url="$(vm_url)"
+if [ -z "$url" ]; then
+  echo "cannot resolve the vmsingle import endpoint (kubectl failed)" >&2
+  exit 1
+fi
+
+adapter="$(adapter_source)"
+if [ -z "$adapter" ]; then
+  echo "cannot read the adapter from configmap $NAMESPACE/$CONFIGMAP (kubectl failed?)" >&2
+  exit 1
+fi
+
+mkdir -p "$STATE_DIR" "$FALLBACK_DIR" 2>/dev/null || true
+rc_all=0
+
+for host in $TARGETS; do
+  state_file="$STATE_DIR/$host.json"
+  state=""
+  [ -s "$state_file" ] && state="$(cat "$state_file")"
+
+  raw="$(printf '%s' "$adapter" | ssh -o BatchMode=yes -o ConnectTimeout=10 "$host" \
+           "python3 - --once --host '$host' --ports '$PORTS' --state $(printf '%q' "$state")" 2>/dev/null)"
+  if [ -z "$raw" ]; then
+    echo "pull failed: no telemetry from $host" >&2
+    rc_all=1
+    continue
+  fi
+
+  # The derived share-rate window travels as one #STATE line; metrics are the rest.
+  new_state="$(printf '%s\n' "$raw" | sed -n 's/^#STATE //p')"
+  prom="$(printf '%s\n' "$raw" | grep -v '^#STATE ')"
+
+  if [ -n "$new_state" ]; then
+    printf '%s' "$new_state" > "$state_file.tmp" && mv "$state_file.tmp" "$state_file"
+  fi
+
+  if [ -z "$(printf '%s' "$prom" | grep -c '^miner_')" ]; then
+    echo "pull produced no miner_ series for $host (adapter ran, no miner answered?)" >&2
+    rc_all=1
+    continue
+  fi
+
+  # Keep the raw text so a broken import path is diagnosable without the target.
+  printf '%s\n' "$prom" > "$FALLBACK_DIR/$host.prom" 2>/dev/null || true
+
+  labelled="$(printf '%s\n' "$prom" | awk -v extra="$PROVENANCE" '
+    /^[a-zA-Z_:][a-zA-Z0-9_:]*([[:space:]]|\{)/ {
+      if (index($0, "{") > 0) {
+        n = index($0, "{")
+        printf "%s{%s,%s\n", substr($0, 1, n-1), extra, substr($0, n+1)
+      } else {
+        split($0, a, /[[:space:]]+/)
+        printf "%s{%s} %s\n", a[1], extra, a[2]
+      }
+      next
+    }
+    { print }
+  ')"
+
+  if printf '%s\n' "$labelled" | curl -sS --max-time 20 -X POST --data-binary @- "$url"; then
+    echo "imported $(printf '%s\n' "$labelled" | grep -c '^miner_') series for $host -> $url"
+  else
+    echo "import failed for $host ($url)" >&2
+    rc_all=1
+  fi
+done
+exit "$rc_all"

@@ -1,0 +1,14 @@
+[Unit]
+Description=Pull miner telemetry from zephyr every 2 minutes
+
+[Timer]
+# 2 minutes, not the smartmon pull's 5: these series are the input to a
+# shares/hour alert, and a sample every 5 min against VictoriaMetrics' 5-minute
+# instant-vector lookback leaves the window empty between pushes, which would
+# make the miner_up/miner_last_share_age rules flap on a healthy miner.
+OnCalendar=*:0/2
+Persistent=true
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
