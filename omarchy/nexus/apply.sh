@@ -192,7 +192,6 @@ fi
 # ── 3. sshd hardening ─────────────────────────────────────────────────────
 log "sshd hardening"
 
-install_file "$REPO_DIR/ssh/10-hardening.conf" /etc/ssh/sshd_config.d/10-hardening.conf
 
 if (( ! CHECK )); then
   # Validate BEFORE reloading — a bad sshd_config that gets reloaded can lock
