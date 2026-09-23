@@ -69,10 +69,20 @@ def _alarm(_sig, _frm):
 
 
 def walk_item(item: Path, root_dev: int):
-    """Walk an item without following symlinks, refusing to cross devices."""
+    """Walk an item without following symlinks, refusing to cross devices.
+
+    Returns (files, dirs, apparent, alloc, crossed, err).
+
+    `alloc` is st_blocks * 512, which is what `du -x` reports: the space that is
+    actually held on disk. btrfs reflinks and shared extents mean an item's
+    apparent size (st_size / `du --apparent-size`) can be many times what
+    deleting it frees - one 70.9 GB apparent season pack here occupies 14 GB.
+    Reclaim estimates must use `alloc`; apparent size is reported separately.
+    """
     files = []
     dirs = []
     total = 0
+    alloc = 0
     crossed = False
     err = None
     signal.signal(signal.SIGALRM, _alarm)
@@ -80,13 +90,18 @@ def walk_item(item: Path, root_dev: int):
     try:
         st = os.lstat(item)
         if st.st_dev != root_dev:
-            return files, dirs, 0, True, None
+            return files, dirs, 0, 0, True, None
         if os.path.isdir(item) and not os.path.islink(item):
             dirs.append(item)
+            alloc += st.st_blocks * 512
             for dirpath, _dirnames, filenames in os.walk(item, followlinks=False):
                 dp = Path(dirpath)
                 if dp != item:
                     dirs.append(dp)
+                    try:
+                        alloc += os.lstat(dp).st_blocks * 512
+                    except OSError:
+                        pass
                 for name in filenames:
                     p = dp / name
                     try:
@@ -99,16 +114,18 @@ def walk_item(item: Path, root_dev: int):
                         continue
                     files.append(p)
                     total += pst.st_size
+                    alloc += pst.st_blocks * 512
         else:
             files.append(item)
             total += st.st_size
+            alloc += st.st_blocks * 512
     except Timeout:
         err = "walk timed out after %ss" % WALK_TIMEOUT_S
     except OSError as e:
         err = "walk error: %s" % e
     finally:
         signal.alarm(0)
-    return files, dirs, total, crossed, err
+    return files, dirs, total, alloc, crossed, err
 
 
 def _ro(db: Path):
@@ -381,10 +398,12 @@ def main():
         if ist.st_dev != root_dev:
             skipped_mount.append(str(item))
             continue
-        files, dirs, total, crossed, err = walk_item(item, root_dev)
+        files, dirs, total, alloc, crossed, err = walk_item(item, root_dev)
         rec = {
             "path": str(item),
-            "bytes": total,
+            # reclaim estimate: on-disk allocation (du -x), NOT apparent size
+            "bytes": alloc,
+            "apparent_bytes": total,
             "files": len(files),
             "dirs": len(dirs),
             "proofs": {},
@@ -464,9 +483,12 @@ def main():
     eligible = sorted([r for r in manifest if r["eligible"]], key=lambda r: -r["bytes"])
     manifest.sort(key=lambda r: -r["bytes"])
 
+    tot_alloc = sum(r["bytes"] for r in eligible)
+    tot_app = sum(r.get("apparent_bytes", r["bytes"]) for r in eligible)
     print(
-        "\nentries=%d  eligible=%d  reclaimable=%.1f GB"
-        % (len(manifest), len(eligible), sum(r["bytes"] for r in eligible) / 1e9)
+        "\nentries=%d  eligible=%d  reclaimable=%.1f GB (du -x allocated)"
+        " / %.1f GB apparent"
+        % (len(manifest), len(eligible), tot_alloc / 1e9, tot_app / 1e9)
     )
     if skipped_mount:
         print("skipped foreign-mount entries (%d):" % len(skipped_mount))
@@ -517,8 +539,15 @@ def main():
             + [("download-client/qbittorrent", qbt.status)]
         ),
         "reclaimable_bytes": sum(r["bytes"] for r in eligible),
+        "reclaimable_apparent_bytes": sum(
+            r.get("apparent_bytes", r["bytes"]) for r in eligible
+        ),
         "categories": {k: len(v) for k, v in cats.items()},
         "category_bytes": {k: sum(r["bytes"] for r in v) for k, v in cats.items()},
+        "category_apparent_bytes": {
+            k: sum(r.get("apparent_bytes", r["bytes"]) for r in v)
+            for k, v in cats.items()
+        },
         "eligible": eligible,
         "all_entries": manifest,
     }
