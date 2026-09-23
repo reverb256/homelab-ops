@@ -18,6 +18,14 @@
 # down a genuine failure decision beyond the documented bound.
 #
 # Managed by homelab-ops/omarchy/<host> -- do not hand-edit on the host.
+# ---- IGNORED BY K3S (verified 2026-09-23) ----
+# The `etcd-arg` KEY BELOW DOES NOTHING. k3s warns "Unknown flag --etcd-arg found in
+# config.yaml, skipping" and the running etcd reports the defaults:
+#   forge: "heartbeat-interval":"500ms","election-timeout":"5s"
+# So the slow-fsync mitigation this block describes has never been applied - on the very
+# host it was written for. Put it on the unit's ExecStart as flags instead
+# (--etcd-arg=heartbeat-interval=250 --etcd-arg=election-timeout=2500) and verify the
+# intervals in the etcd startup log. See runbooks/k3s-rename-sentry-20260923/PLAN.md.
 etcd-arg:
   - heartbeat-interval=250
   - election-timeout=2500
