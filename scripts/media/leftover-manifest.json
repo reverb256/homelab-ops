@@ -1,14 +1,15 @@
 {
-  "generated_at": "2026-09-22T23:12:23-0500",
+  "generated_at": "2026-09-22T23:19:13-0500",
   "root": "/data/media/downloads",
   "device": "0:67",
   "proof_sources": {
     "library/sonarr": "ok (+2153 paths)",
-    "library/radarr": "ok (+103 paths)",
-    "library/jellyfin": "ok (+7569 paths)",
-    "download-client/qbittorrent": "ok (69 torrents; 57 complete, 6 error/metaDL states)"
+    "library/radarr": "ok (+104 paths)",
+    "library/jellyfin": "ok (+7587 paths)",
+    "download-client/qbittorrent": "ok (70 torrents; 57 complete, 6 error/metaDL states)"
   },
-  "reclaimable_bytes": 1007984638149,
+  "reclaimable_bytes": 633865953280,
+  "reclaimable_apparent_bytes": 1007984638149,
   "categories": {
     "eligible-and-unreferenced": 94,
     "still-active-in-download-client": 0,
@@ -17,6 +18,13 @@
     "genuinely-unknown": 0
   },
   "category_bytes": {
+    "eligible-and-unreferenced": 633865953280,
+    "still-active-in-download-client": 0,
+    "hardlinked-into-library": 117124665344,
+    "library-referenced": 0,
+    "genuinely-unknown": 0
+  },
+  "category_apparent_bytes": {
     "eligible-and-unreferenced": 1007984638149,
     "still-active-in-download-client": 0,
     "hardlinked-into-library": 140104084113,
@@ -26,7 +34,8 @@
   "eligible": [
     {
       "path": "/data/media/downloads/Akira.1988.JAPANESE.2160p.BluRay.HEVC.TrueHD.5.1-TAiCHi",
-      "bytes": 97474624778,
+      "bytes": 97474740224,
+      "apparent_bytes": 97474624778,
       "files": 42,
       "dirs": 12,
       "proofs": {
@@ -39,50 +48,9 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/Attack.on.Titan.The.Last.Attack.2024.4K.HDR.DV.2160p.BDRemux Jap Eng Sub Ita x265-NAHOM",
-      "bytes": 76364816342,
-      "files": 3,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 3 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Seinfeld.S09.2160p.NF.WEB-DL.x265.10bit.HDR.DDP5.1-ABBiE[rartv]",
-      "bytes": 70906732277,
-      "files": 22,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 22 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/The.Office.US.S05.1080p.BluRay.x264-decibeL[rartv]",
-      "bytes": 67861501578,
-      "files": 25,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 25 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
       "path": "/data/media/downloads/In.The.Grey.2026.2160p.UHD.BluRay.REMUX.HDR.MULTi.TrueHD.Atmos.H265-BTM",
-      "bytes": 62102250137,
+      "bytes": 62102257664,
+      "apparent_bytes": 62102250137,
       "files": 2,
       "dirs": 1,
       "proofs": {
@@ -96,7 +64,8 @@
     },
     {
       "path": "/data/media/downloads/[FLE] Re ZERO Starting Life in Another World - S01 (BD 1080p HEVC FLAC) [Dual Audio]",
-      "bytes": 54316573783,
+      "bytes": 54316634112,
+      "apparent_bytes": 54316573783,
       "files": 30,
       "dirs": 2,
       "proofs": {
@@ -109,8 +78,24 @@
       "reasons": []
     },
     {
+      "path": "/data/media/downloads/Attack.on.Titan.The.Last.Attack.2024.4K.HDR.DV.2160p.BDRemux Jap Eng Sub Ita x265-NAHOM",
+      "bytes": 44356923392,
+      "apparent_bytes": 76364816342,
+      "files": 3,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 3 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
       "path": "/data/media/downloads/Fullmetal.Alchemist.Brotherhood.S01.MULTi.1080p.10bits.BluRay.x265.AAC-FRiTCHi571",
-      "bytes": 41966590866,
+      "bytes": 41966718976,
+      "apparent_bytes": 41966590866,
       "files": 64,
       "dirs": 1,
       "proofs": {
@@ -124,7 +109,8 @@
     },
     {
       "path": "/data/media/downloads/3.Days.To.Kill.2014.1080p.BluRay.AVC.DTS-HD.MA.5.1-PublicHD",
-      "bytes": 38418906982,
+      "bytes": 30718431232,
+      "apparent_bytes": 38418906982,
       "files": 69,
       "dirs": 7,
       "proofs": {
@@ -138,7 +124,8 @@
     },
     {
       "path": "/data/media/downloads/DS9 S04 AI_Upscale_1080p+",
-      "bytes": 25263959811,
+      "bytes": 25264009216,
+      "apparent_bytes": 25263959811,
       "files": 26,
       "dirs": 1,
       "proofs": {
@@ -151,92 +138,9 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/Seinfeld.1989.S03.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 22217644181,
-      "files": 22,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 22 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Seinfeld.1989.S04.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 22208358620,
-      "files": 21,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 21 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Seinfeld.1989.S08.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 21488300738,
-      "files": 22,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 22 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Seinfeld.1989.S09.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 20709310605,
-      "files": 19,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 19 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Seinfeld.1989.S06.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 20335134362,
-      "files": 20,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 20 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/[Hako] Towa no Yuugure - S01 (WEB 1080p HEVC AAC)",
-      "bytes": 18127994446,
-      "files": 13,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 13 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
       "path": "/data/media/downloads/DS9 S03 AI_Upscale_1080p+",
-      "bytes": 17387430730,
+      "bytes": 17387491328,
+      "apparent_bytes": 17387430730,
       "files": 27,
       "dirs": 1,
       "proofs": {
@@ -249,41 +153,14 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/Seinfeld.1989.S07.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 16213572878,
-      "files": 15,
+      "path": "/data/media/downloads/Seinfeld.S09.2160p.NF.WEB-DL.x265.10bit.HDR.DDP5.1-ABBiE[rartv]",
+      "bytes": 13687382016,
+      "apparent_bytes": 70906732277,
+      "files": 22,
       "dirs": 1,
       "proofs": {
         "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 15 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Home.Improvement.S08.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 12656125180,
-      "files": 30,
-      "dirs": 2,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 30 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Seinfeld.1989.S02.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 11602589840,
-      "files": 12,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 12 nlink==1)",
+        "P2_nlink": "PASS (all 22 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -292,7 +169,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E10 The Cigar Store Indian UHD BluRay 2160p DTS-HD MA 5 1 HEVC REMUX-FraMeSToR",
-      "bytes": 11144377206,
+      "bytes": 11144384512,
+      "apparent_bytes": 11144377206,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -305,92 +183,9 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E07 The Non Fat Yogurt UHD BluRay 2160p DTS-HD MA 5 1 HEVC REMUX-FraMeSToR",
-      "bytes": 11077606646,
-      "files": 1,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 1 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Home.Improvement.S04.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 11015807737,
-      "files": 25,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 25 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Home.Improvement.S02.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 10803843679,
-      "files": 26,
-      "dirs": 2,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 26 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Home.Improvement.S03.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 10514929996,
-      "files": 25,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 25 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Home.Improvement.S06.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 10342881601,
-      "files": 26,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 26 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Home.Improvement.S05.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 10117556158,
-      "files": 25,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 25 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
       "path": "/data/media/downloads/Boss Level (2021) (2160p BluRay x265 HEVC 10bit HDR AAC 5.1 Tigole)",
-      "bytes": 9942784297,
+      "bytes": 9942786048,
+      "apparent_bytes": 9942784297,
       "files": 1,
       "dirs": 1,
       "proofs": {
@@ -404,7 +199,8 @@
     },
     {
       "path": "/data/media/downloads/[DragsterPS] Fate Zero S02 [1080p] [Multi-Audio] [Multi-Subs]",
-      "bytes": 9877745646,
+      "bytes": 9877766144,
+      "apparent_bytes": 9877745646,
       "files": 12,
       "dirs": 1,
       "proofs": {
@@ -418,7 +214,8 @@
     },
     {
       "path": "/data/media/downloads/Re.ZERO.Starting.Life.in.Another.World.S02.MULTi.1080p.WEBRiP.x265-T3KASHi",
-      "bytes": 9794613495,
+      "bytes": 9794662400,
+      "apparent_bytes": 9794613495,
       "files": 26,
       "dirs": 1,
       "proofs": {
@@ -431,13 +228,14 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/Home.Improvement.S07.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 9553106618,
-      "files": 25,
+      "path": "/data/media/downloads/Seinfeld.1989.S03.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 9164906496,
+      "apparent_bytes": 22217644181,
+      "files": 22,
       "dirs": 1,
       "proofs": {
         "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 25 nlink==1)",
+        "P2_nlink": "PASS (all 22 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -446,7 +244,8 @@
     },
     {
       "path": "/data/media/downloads/Fate Zero (2011) S01 [1080p x265 HEVC 10bit BluRay Dual Audio AAC] [Prof]",
-      "bytes": 8707615224,
+      "bytes": 8707649536,
+      "apparent_bytes": 8707615224,
       "files": 13,
       "dirs": 1,
       "proofs": {
@@ -460,7 +259,8 @@
     },
     {
       "path": "/data/media/downloads/The.Office.US.S02.1080p.BluRay.x265-RARBG",
-      "bytes": 8012267446,
+      "bytes": 8012402688,
+      "apparent_bytes": 8012267446,
       "files": 67,
       "dirs": 24,
       "proofs": {
@@ -474,12 +274,43 @@
     },
     {
       "path": "/data/media/downloads/Silo.S01.REPACK.1080p.ITA-ENG.MULTI.WEBRip.x265.AAC-V3SP4EV3R",
-      "bytes": 7316610526,
+      "bytes": 7316631552,
+      "apparent_bytes": 7316610526,
       "files": 10,
       "dirs": 1,
       "proofs": {
         "P1_device": "PASS (single device)",
         "P2_nlink": "PASS (all 10 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Seinfeld.1989.S02.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 6509547520,
+      "apparent_bytes": 11602589840,
+      "files": 12,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 12 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E07 The Non Fat Yogurt UHD BluRay 2160p DTS-HD MA 5 1 HEVC REMUX-FraMeSToR",
+      "bytes": 6495830016,
+      "apparent_bytes": 11077606646,
+      "files": 1,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 1 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -488,7 +319,8 @@
     },
     {
       "path": "/data/media/downloads/Fate.Strange.Fake.S01.VOSTFR.1080p.BluRay.x265-KAF",
-      "bytes": 6226505381,
+      "bytes": 6226538496,
+      "apparent_bytes": 6226505381,
       "files": 14,
       "dirs": 1,
       "proofs": {
@@ -501,8 +333,24 @@
       "reasons": []
     },
     {
+      "path": "/data/media/downloads/Seinfeld.1989.S04.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 6164107264,
+      "apparent_bytes": 22208358620,
+      "files": 21,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 21 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
       "path": "/data/media/downloads/Silo.S02.REPACK.1080p.ITA-ENG.MULTI.WEBRip.x265.AAC-V3SP4EV3R",
-      "bytes": 6086437053,
+      "bytes": 6086459392,
+      "apparent_bytes": 6086437053,
       "files": 10,
       "dirs": 1,
       "proofs": {
@@ -515,22 +363,9 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/Home.Improvement.S01.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 5826540748,
-      "files": 14,
-      "dirs": 2,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 14 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
       "path": "/data/media/downloads/Lioness.2023.Season.2.COMPLETE.1080p.AMZN.WEB-DL.x264.ESubs.[5.4GB].[MP4].[S02.Full]-[y2flix]",
-      "bytes": 5771512828,
+      "bytes": 5771558912,
+      "apparent_bytes": 5771512828,
       "files": 17,
       "dirs": 1,
       "proofs": {
@@ -544,7 +379,8 @@
     },
     {
       "path": "/data/media/downloads/Cowboy.Bebop.S01.1080p.BRRIP.x265.OPUS51.DUAL-EMPATHY",
-      "bytes": 5759685288,
+      "bytes": 5759737856,
+      "apparent_bytes": 5759685288,
       "files": 28,
       "dirs": 1,
       "proofs": {
@@ -558,7 +394,8 @@
     },
     {
       "path": "/data/media/downloads/Melania (2026) [2160p] [4K] [WEB] [5.1] [YTS.BZ]",
-      "bytes": 4988337660,
+      "bytes": 4988346368,
+      "apparent_bytes": 4988337660,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -572,7 +409,8 @@
     },
     {
       "path": "/data/media/downloads/Seinfeld.1989.S01.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 4856093783,
+      "bytes": 4856102912,
+      "apparent_bytes": 4856093783,
       "files": 5,
       "dirs": 1,
       "proofs": {
@@ -586,7 +424,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E18E19 The Raincoats 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 4756486760,
+      "bytes": 4756496384,
+      "apparent_bytes": 4756486760,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -600,7 +439,8 @@
     },
     {
       "path": "/data/media/downloads/Silo.S03.1080p.WEBRip.10Bit.DDP5.1.x265-NeoNoir",
-      "bytes": 4746691992,
+      "bytes": 4746719232,
+      "apparent_bytes": 4746691992,
       "files": 10,
       "dirs": 1,
       "proofs": {
@@ -614,7 +454,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Special Ops Lioness S01 1080p 10bit WEBRip 6CH x265 HEVC-PSA",
-      "bytes": 4279153007,
+      "bytes": 4279181312,
+      "apparent_bytes": 4279153007,
       "files": 10,
       "dirs": 2,
       "proofs": {
@@ -628,7 +469,8 @@
     },
     {
       "path": "/data/media/downloads/unholy-fix",
-      "bytes": 3996158056,
+      "bytes": 3996160000,
+      "apparent_bytes": 3996158056,
       "files": 1,
       "dirs": 1,
       "proofs": {
@@ -642,7 +484,8 @@
     },
     {
       "path": "/data/media/downloads/Fate\u2044stay night, Heaven's Feel I. Presage Flower (2017) VOSTFR 1080p 10bits BluRay x265 AAC 5.1 v2 -Punisher694.mkv",
-      "bytes": 3913203754,
+      "bytes": 3913207808,
+      "apparent_bytes": 3913203754,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -656,7 +499,8 @@
     },
     {
       "path": "/data/media/downloads/THE GHOST IN THE SHELL - Season 1",
-      "bytes": 3555678766,
+      "bytes": 3555700736,
+      "apparent_bytes": 3555678766,
       "files": 10,
       "dirs": 1,
       "proofs": {
@@ -669,8 +513,69 @@
       "reasons": []
     },
     {
+      "path": "/data/media/downloads/Seinfeld.1989.S07.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 3321782272,
+      "apparent_bytes": 16213572878,
+      "files": 15,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 15 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Seinfeld.1989.S09.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 3249864704,
+      "apparent_bytes": 20709310605,
+      "files": 19,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 19 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Seinfeld.1989.S06.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 3055640576,
+      "apparent_bytes": 20335134362,
+      "files": 20,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 20 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Seinfeld.1989.S08.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 3018170368,
+      "apparent_bytes": 21488300738,
+      "files": 22,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 22 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
       "path": "/data/media/downloads/krash2-import",
-      "bytes": 2686269935,
+      "bytes": 2690252800,
+      "apparent_bytes": 2686269935,
       "files": 1821,
       "dirs": 218,
       "proofs": {
@@ -684,68 +589,13 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E22 The Opposite 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2566360028,
+      "bytes": 2566369280,
+      "apparent_bytes": 2566360028,
       "files": 3,
       "dirs": 1,
       "proofs": {
         "P1_device": "PASS (single device)",
         "P2_nlink": "PASS (all 3 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E04 The Sniffing Accountant 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2563791142,
-      "files": 3,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 3 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E21 The Hamptons 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2563770324,
-      "files": 3,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 3 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E08 The Barber 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2558331538,
-      "files": 3,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 3 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E01 The Mango 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2556724781,
-      "files": 1,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 1 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -754,7 +604,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E15 The Pie 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2554970050,
+      "bytes": 2554978304,
+      "apparent_bytes": 2554970050,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -768,7 +619,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E09 The Masseuse 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2554941924,
+      "bytes": 2554949632,
+      "apparent_bytes": 2554941924,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -782,7 +634,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E17 The Wife 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2554938397,
+      "bytes": 2554949632,
+      "apparent_bytes": 2554938397,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -796,7 +649,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E12 The Stall 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2552442523,
+      "bytes": 2552451072,
+      "apparent_bytes": 2552442523,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -810,7 +664,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E16 The Stand-In 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2551138291,
+      "bytes": 2551148544,
+      "apparent_bytes": 2551138291,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -824,7 +679,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E14 The Marine Biologist 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2542001947,
+      "bytes": 2542010368,
+      "apparent_bytes": 2542001947,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -838,7 +694,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E07 The Non-Fat Yogurt 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2524574387,
+      "bytes": 2524581888,
+      "apparent_bytes": 2524574387,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -852,7 +709,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E02 The Puffy Shirt 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2521241912,
+      "bytes": 2521251840,
+      "apparent_bytes": 2521241912,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -866,7 +724,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E05 The Bris 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2493272556,
+      "bytes": 2493280256,
+      "apparent_bytes": 2493272556,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -879,8 +738,9 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E06 The Lip Reader 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2489323306,
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E08 The Barber 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
+      "bytes": 2480877568,
+      "apparent_bytes": 2558331538,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -894,7 +754,8 @@
     },
     {
       "path": "/data/media/downloads/Star.Trek.Strange.New.Worlds.S04E08.1080p.WEB.h264-ETHEL[EZTVx.to].mkv",
-      "bytes": 2449338779,
+      "bytes": 2449342464,
+      "apparent_bytes": 2449338779,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -908,7 +769,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E20 The Fire 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2439109172,
+      "bytes": 2439118848,
+      "apparent_bytes": 2439109172,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -922,7 +784,8 @@
     },
     {
       "path": "/data/media/downloads/Lioness.2023.S03E07.1080p.WEB.h264-ETHEL[EZTVx.to].mkv",
-      "bytes": 2433297609,
+      "bytes": 2433298432,
+      "apparent_bytes": 2433297609,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -936,7 +799,8 @@
     },
     {
       "path": "/data/media/downloads/star.trek.strange.new.worlds.s04e09.1080p.web.h264-cakes[EZTVx.to].mkv",
-      "bytes": 2425371005,
+      "bytes": 2425372672,
+      "apparent_bytes": 2425371005,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -950,7 +814,8 @@
     },
     {
       "path": "/data/media/downloads/The.Office.US.S01.1080p.BluRay.x265-RARBG",
-      "bytes": 2263060157,
+      "bytes": 2263101440,
+      "apparent_bytes": 2263060157,
       "files": 19,
       "dirs": 8,
       "proofs": {
@@ -964,7 +829,8 @@
     },
     {
       "path": "/data/media/downloads/Guardians.of.the.Galaxy.Vol.3.2023.1080p.BluRay.1600MB.DD5.1.x264-GalaxyRG[TGx]",
-      "bytes": 1779569917,
+      "bytes": 1779580928,
+      "apparent_bytes": 1779569917,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -978,7 +844,8 @@
     },
     {
       "path": "/data/media/downloads/[Yameii] Re ZERO, Starting Life in Another World - S04E13 v2 [English Dub] [CR WEB-DL 1080p H264 AAC] [1C66045E].mkv",
-      "bytes": 1778690164,
+      "bytes": 1778692096,
+      "apparent_bytes": 1778690164,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -992,7 +859,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E11.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1768994941,
+      "bytes": 1768996864,
+      "apparent_bytes": 1768994941,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1006,7 +874,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E08.Who.Are.You.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1735970538,
+      "bytes": 1735970816,
+      "apparent_bytes": 1735970538,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1020,7 +889,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E10.Murder.Is.a.Habit.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1707928066,
+      "bytes": 1707929600,
+      "apparent_bytes": 1707928066,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1034,7 +904,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E07.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1702145708,
+      "bytes": 1702146048,
+      "apparent_bytes": 1702145708,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1048,7 +919,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E06.Julius.Juukulius.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1696560032,
+      "bytes": 1696563200,
+      "apparent_bytes": 1696560032,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1062,7 +934,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E12.From.Now.On.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1694907670,
+      "bytes": 1694908416,
+      "apparent_bytes": 1694907670,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1076,7 +949,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E09.Empty.Shell.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1692215815,
+      "bytes": 1692217344,
+      "apparent_bytes": 1692215815,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1090,21 +964,8 @@
     },
     {
       "path": "/data/media/downloads/Re.ZERO.Starting.Life.in.Another.World.2016.S04E16.1080p.CR.WEB-DL.AAC2.0.H.264-AnoZu.mkv",
-      "bytes": 1661420923,
-      "files": 1,
-      "dirs": 0,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 1 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Dragon.Ball.S01E01.UNCENSORED.REMASTERED.MULTi.1080p.BluRay.x264-T3KASHi.mkv",
-      "bytes": 1561967947,
+      "bytes": 1661423616,
+      "apparent_bytes": 1661420923,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1118,7 +979,8 @@
     },
     {
       "path": "/data/media/downloads/Re ZERO Starting Life In Another World S04E02 MULTi AD 1080p CR WEB-DL AAC2.0 x264-Tsundere-Raws.mkv",
-      "bytes": 1521790637,
+      "bytes": 1521790976,
+      "apparent_bytes": 1521790637,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1132,7 +994,8 @@
     },
     {
       "path": "/data/media/downloads/Re ZERO Starting Life In Another World S04E03 MULTi AD 1080p CR WEB-DL AAC2.0 x264-Tsundere-Raws.mkv",
-      "bytes": 1518047121,
+      "bytes": 1518047232,
+      "apparent_bytes": 1518047121,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1146,7 +1009,8 @@
     },
     {
       "path": "/data/media/downloads/Re.ZERO.Starting.Life.in.Another.World.S04E14.Five.Obstacles.1080p.CR.WEB-DL.DUAL.AAC2.0.H.264-VARYG.mkv",
-      "bytes": 1512250405,
+      "bytes": 1512251392,
+      "apparent_bytes": 1512250405,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1160,7 +1024,8 @@
     },
     {
       "path": "/data/media/downloads/Re ZERO, Starting Life In Another World S04E01 MULTi 1080p WEB x264 AAC -Tsundere-Raws (CR).mkv",
-      "bytes": 1510480222,
+      "bytes": 1510481920,
+      "apparent_bytes": 1510480222,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1174,7 +1039,8 @@
     },
     {
       "path": "/data/media/downloads/Re.ZERO.Starting.Life.in.Another.World.2016.S04E15.1080p.CR.WEB-DL.AAC2.0.H.264-AnoZu.mkv",
-      "bytes": 1476791228,
+      "bytes": 1476792320,
+      "apparent_bytes": 1476791228,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1188,7 +1054,8 @@
     },
     {
       "path": "/data/media/downloads/Re ZERO, Starting Life in Another World S04E04 VOSTFR 1080p WEB x264 AAC -Tsundere-Raws (CR).mkv",
-      "bytes": 1437295438,
+      "bytes": 1437298688,
+      "apparent_bytes": 1437295438,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1202,26 +1069,13 @@
     },
     {
       "path": "/data/media/downloads/Re ZERO, Starting Life in Another World S04E05 VOSTFR 1080p WEB x264 AAC -Tsundere-Raws (CR).mkv",
-      "bytes": 1435223019,
+      "bytes": 1435226112,
+      "apparent_bytes": 1435223019,
       "files": 1,
       "dirs": 0,
       "proofs": {
         "P1_device": "PASS (single device)",
         "P2_nlink": "PASS (all 1 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E03 The Glasses 1080p PLAY WEB-DL AAC2 0 H 264-FLUX",
-      "bytes": 1421658599,
-      "files": 3,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 3 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -1230,7 +1084,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E11 The Conversion 1080p PLAY WEB-DL AAC2 0 H 264-FLUX",
-      "bytes": 1417340183,
+      "bytes": 1417351168,
+      "apparent_bytes": 1417340183,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -1243,13 +1098,44 @@
       "reasons": []
     },
     {
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E01 The Mango 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
+      "bytes": 921436160,
+      "apparent_bytes": 2556724781,
+      "files": 1,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 1 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
       "path": "/data/media/downloads/ReZero.kara.Hajimeru.Isekai.Seikatsu.S04E17.1080p.AMZN.WEB-DL.JPN.DDP2.0.H.264-ToonsHub.mkv",
-      "bytes": 859411495,
+      "bytes": 859414528,
+      "apparent_bytes": 859411495,
       "files": 1,
       "dirs": 0,
       "proofs": {
         "P1_device": "PASS (single device)",
         "P2_nlink": "PASS (all 1 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/The.Office.US.S05.1080p.BluRay.x264-decibeL[rartv]",
+      "bytes": 827719680,
+      "apparent_bytes": 67861501578,
+      "files": 25,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 25 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -1258,12 +1144,103 @@
     },
     {
       "path": "/data/media/downloads/Minions.and.More.Volume.1.2022.1080p.WEBRip.x265-RBG.mp4",
-      "bytes": 816006887,
+      "bytes": 816009216,
+      "apparent_bytes": 816006887,
       "files": 1,
       "dirs": 0,
       "proofs": {
         "P1_device": "PASS (single device)",
         "P2_nlink": "PASS (all 1 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E21 The Hamptons 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
+      "bytes": 722563072,
+      "apparent_bytes": 2563770324,
+      "files": 3,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 3 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S07.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 703332352,
+      "apparent_bytes": 9553106618,
+      "files": 25,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 25 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E03 The Glasses 1080p PLAY WEB-DL AAC2 0 H 264-FLUX",
+      "bytes": 653619200,
+      "apparent_bytes": 1421658599,
+      "files": 3,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 3 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S08.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 606171136,
+      "apparent_bytes": 12656125180,
+      "files": 30,
+      "dirs": 2,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 30 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S06.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 583282688,
+      "apparent_bytes": 10342881601,
+      "files": 26,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 26 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S04.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 511655936,
+      "apparent_bytes": 11015807737,
+      "files": 25,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 25 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -1272,7 +1249,8 @@
     },
     {
       "path": "/data/media/downloads/Lioness.2023.S03E03.iNTERNAL.480p.x264-mSD[EZTVx.to].mkv",
-      "bytes": 422458714,
+      "bytes": 422461440,
+      "apparent_bytes": 422458714,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1285,8 +1263,129 @@
       "reasons": []
     },
     {
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E06 The Lip Reader 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
+      "bytes": 414920704,
+      "apparent_bytes": 2489323306,
+      "files": 3,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 3 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
       "path": "/data/media/downloads/Lioness.2023.S03E05.iNTERNAL.480p.x264-mSD[EZTVx.to].mkv",
-      "bytes": 404591456,
+      "bytes": 404594688,
+      "apparent_bytes": 404591456,
+      "files": 1,
+      "dirs": 0,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 1 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S03.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 399810560,
+      "apparent_bytes": 10514929996,
+      "files": 25,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 25 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E04 The Sniffing Accountant 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
+      "bytes": 390414336,
+      "apparent_bytes": 2563791142,
+      "files": 3,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 3 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S05.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 354951168,
+      "apparent_bytes": 10117556158,
+      "files": 25,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 25 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S02.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 351854592,
+      "apparent_bytes": 10803843679,
+      "files": 26,
+      "dirs": 2,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 26 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/[Hako] Towa no Yuugure - S01 (WEB 1080p HEVC AAC)",
+      "bytes": 223617024,
+      "apparent_bytes": 18127994446,
+      "files": 13,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 13 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S01.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 63598592,
+      "apparent_bytes": 5826540748,
+      "files": 14,
+      "dirs": 2,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 14 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Dragon.Ball.S01E01.UNCENSORED.REMASTERED.MULTi.1080p.BluRay.x264-T3KASHi.mkv",
+      "bytes": 2588672,
+      "apparent_bytes": 1561967947,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1300,7 +1399,8 @@
     },
     {
       "path": "/data/media/downloads/Sailor.Moon.SuperS.S04.MULTi.1080p.BluRay.x265-T3KASHi",
-      "bytes": 1776,
+      "bytes": 4096,
+      "apparent_bytes": 1776,
       "files": 1,
       "dirs": 1,
       "proofs": {
@@ -1315,6 +1415,7 @@
     {
       "path": "/data/media/downloads/complete",
       "bytes": 0,
+      "apparent_bytes": 0,
       "files": 0,
       "dirs": 1,
       "proofs": {
@@ -1329,6 +1430,7 @@
     {
       "path": "/data/media/downloads/incomplete",
       "bytes": 0,
+      "apparent_bytes": 0,
       "files": 0,
       "dirs": 1,
       "proofs": {
@@ -1344,7 +1446,8 @@
   "all_entries": [
     {
       "path": "/data/media/downloads/games",
-      "bytes": 140104084113,
+      "bytes": 117124665344,
+      "apparent_bytes": 140104084113,
       "files": 2389,
       "dirs": 229,
       "proofs": {
@@ -1360,7 +1463,8 @@
     },
     {
       "path": "/data/media/downloads/Akira.1988.JAPANESE.2160p.BluRay.HEVC.TrueHD.5.1-TAiCHi",
-      "bytes": 97474624778,
+      "bytes": 97474740224,
+      "apparent_bytes": 97474624778,
       "files": 42,
       "dirs": 12,
       "proofs": {
@@ -1373,50 +1477,9 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/Attack.on.Titan.The.Last.Attack.2024.4K.HDR.DV.2160p.BDRemux Jap Eng Sub Ita x265-NAHOM",
-      "bytes": 76364816342,
-      "files": 3,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 3 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Seinfeld.S09.2160p.NF.WEB-DL.x265.10bit.HDR.DDP5.1-ABBiE[rartv]",
-      "bytes": 70906732277,
-      "files": 22,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 22 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/The.Office.US.S05.1080p.BluRay.x264-decibeL[rartv]",
-      "bytes": 67861501578,
-      "files": 25,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 25 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
       "path": "/data/media/downloads/In.The.Grey.2026.2160p.UHD.BluRay.REMUX.HDR.MULTi.TrueHD.Atmos.H265-BTM",
-      "bytes": 62102250137,
+      "bytes": 62102257664,
+      "apparent_bytes": 62102250137,
       "files": 2,
       "dirs": 1,
       "proofs": {
@@ -1430,7 +1493,8 @@
     },
     {
       "path": "/data/media/downloads/[FLE] Re ZERO Starting Life in Another World - S01 (BD 1080p HEVC FLAC) [Dual Audio]",
-      "bytes": 54316573783,
+      "bytes": 54316634112,
+      "apparent_bytes": 54316573783,
       "files": 30,
       "dirs": 2,
       "proofs": {
@@ -1443,8 +1507,24 @@
       "reasons": []
     },
     {
+      "path": "/data/media/downloads/Attack.on.Titan.The.Last.Attack.2024.4K.HDR.DV.2160p.BDRemux Jap Eng Sub Ita x265-NAHOM",
+      "bytes": 44356923392,
+      "apparent_bytes": 76364816342,
+      "files": 3,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 3 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
       "path": "/data/media/downloads/Fullmetal.Alchemist.Brotherhood.S01.MULTi.1080p.10bits.BluRay.x265.AAC-FRiTCHi571",
-      "bytes": 41966590866,
+      "bytes": 41966718976,
+      "apparent_bytes": 41966590866,
       "files": 64,
       "dirs": 1,
       "proofs": {
@@ -1458,7 +1538,8 @@
     },
     {
       "path": "/data/media/downloads/3.Days.To.Kill.2014.1080p.BluRay.AVC.DTS-HD.MA.5.1-PublicHD",
-      "bytes": 38418906982,
+      "bytes": 30718431232,
+      "apparent_bytes": 38418906982,
       "files": 69,
       "dirs": 7,
       "proofs": {
@@ -1472,7 +1553,8 @@
     },
     {
       "path": "/data/media/downloads/DS9 S04 AI_Upscale_1080p+",
-      "bytes": 25263959811,
+      "bytes": 25264009216,
+      "apparent_bytes": 25263959811,
       "files": 26,
       "dirs": 1,
       "proofs": {
@@ -1485,92 +1567,9 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/Seinfeld.1989.S03.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 22217644181,
-      "files": 22,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 22 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Seinfeld.1989.S04.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 22208358620,
-      "files": 21,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 21 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Seinfeld.1989.S08.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 21488300738,
-      "files": 22,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 22 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Seinfeld.1989.S09.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 20709310605,
-      "files": 19,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 19 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Seinfeld.1989.S06.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 20335134362,
-      "files": 20,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 20 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/[Hako] Towa no Yuugure - S01 (WEB 1080p HEVC AAC)",
-      "bytes": 18127994446,
-      "files": 13,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 13 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
       "path": "/data/media/downloads/DS9 S03 AI_Upscale_1080p+",
-      "bytes": 17387430730,
+      "bytes": 17387491328,
+      "apparent_bytes": 17387430730,
       "files": 27,
       "dirs": 1,
       "proofs": {
@@ -1583,41 +1582,14 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/Seinfeld.1989.S07.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 16213572878,
-      "files": 15,
+      "path": "/data/media/downloads/Seinfeld.S09.2160p.NF.WEB-DL.x265.10bit.HDR.DDP5.1-ABBiE[rartv]",
+      "bytes": 13687382016,
+      "apparent_bytes": 70906732277,
+      "files": 22,
       "dirs": 1,
       "proofs": {
         "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 15 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Home.Improvement.S08.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 12656125180,
-      "files": 30,
-      "dirs": 2,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 30 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Seinfeld.1989.S02.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 11602589840,
-      "files": 12,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 12 nlink==1)",
+        "P2_nlink": "PASS (all 22 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -1626,7 +1598,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E10 The Cigar Store Indian UHD BluRay 2160p DTS-HD MA 5 1 HEVC REMUX-FraMeSToR",
-      "bytes": 11144377206,
+      "bytes": 11144384512,
+      "apparent_bytes": 11144377206,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -1639,92 +1612,9 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E07 The Non Fat Yogurt UHD BluRay 2160p DTS-HD MA 5 1 HEVC REMUX-FraMeSToR",
-      "bytes": 11077606646,
-      "files": 1,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 1 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Home.Improvement.S04.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 11015807737,
-      "files": 25,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 25 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Home.Improvement.S02.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 10803843679,
-      "files": 26,
-      "dirs": 2,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 26 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Home.Improvement.S03.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 10514929996,
-      "files": 25,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 25 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Home.Improvement.S06.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 10342881601,
-      "files": 26,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 26 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Home.Improvement.S05.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 10117556158,
-      "files": 25,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 25 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
       "path": "/data/media/downloads/Boss Level (2021) (2160p BluRay x265 HEVC 10bit HDR AAC 5.1 Tigole)",
-      "bytes": 9942784297,
+      "bytes": 9942786048,
+      "apparent_bytes": 9942784297,
       "files": 1,
       "dirs": 1,
       "proofs": {
@@ -1738,7 +1628,8 @@
     },
     {
       "path": "/data/media/downloads/[DragsterPS] Fate Zero S02 [1080p] [Multi-Audio] [Multi-Subs]",
-      "bytes": 9877745646,
+      "bytes": 9877766144,
+      "apparent_bytes": 9877745646,
       "files": 12,
       "dirs": 1,
       "proofs": {
@@ -1752,7 +1643,8 @@
     },
     {
       "path": "/data/media/downloads/Re.ZERO.Starting.Life.in.Another.World.S02.MULTi.1080p.WEBRiP.x265-T3KASHi",
-      "bytes": 9794613495,
+      "bytes": 9794662400,
+      "apparent_bytes": 9794613495,
       "files": 26,
       "dirs": 1,
       "proofs": {
@@ -1765,13 +1657,14 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/Home.Improvement.S07.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 9553106618,
-      "files": 25,
+      "path": "/data/media/downloads/Seinfeld.1989.S03.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 9164906496,
+      "apparent_bytes": 22217644181,
+      "files": 22,
       "dirs": 1,
       "proofs": {
         "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 25 nlink==1)",
+        "P2_nlink": "PASS (all 22 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -1780,7 +1673,8 @@
     },
     {
       "path": "/data/media/downloads/Fate Zero (2011) S01 [1080p x265 HEVC 10bit BluRay Dual Audio AAC] [Prof]",
-      "bytes": 8707615224,
+      "bytes": 8707649536,
+      "apparent_bytes": 8707615224,
       "files": 13,
       "dirs": 1,
       "proofs": {
@@ -1794,7 +1688,8 @@
     },
     {
       "path": "/data/media/downloads/The.Office.US.S02.1080p.BluRay.x265-RARBG",
-      "bytes": 8012267446,
+      "bytes": 8012402688,
+      "apparent_bytes": 8012267446,
       "files": 67,
       "dirs": 24,
       "proofs": {
@@ -1808,12 +1703,43 @@
     },
     {
       "path": "/data/media/downloads/Silo.S01.REPACK.1080p.ITA-ENG.MULTI.WEBRip.x265.AAC-V3SP4EV3R",
-      "bytes": 7316610526,
+      "bytes": 7316631552,
+      "apparent_bytes": 7316610526,
       "files": 10,
       "dirs": 1,
       "proofs": {
         "P1_device": "PASS (single device)",
         "P2_nlink": "PASS (all 10 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Seinfeld.1989.S02.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 6509547520,
+      "apparent_bytes": 11602589840,
+      "files": 12,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 12 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E07 The Non Fat Yogurt UHD BluRay 2160p DTS-HD MA 5 1 HEVC REMUX-FraMeSToR",
+      "bytes": 6495830016,
+      "apparent_bytes": 11077606646,
+      "files": 1,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 1 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -1822,7 +1748,8 @@
     },
     {
       "path": "/data/media/downloads/Fate.Strange.Fake.S01.VOSTFR.1080p.BluRay.x265-KAF",
-      "bytes": 6226505381,
+      "bytes": 6226538496,
+      "apparent_bytes": 6226505381,
       "files": 14,
       "dirs": 1,
       "proofs": {
@@ -1835,8 +1762,24 @@
       "reasons": []
     },
     {
+      "path": "/data/media/downloads/Seinfeld.1989.S04.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 6164107264,
+      "apparent_bytes": 22208358620,
+      "files": 21,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 21 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
       "path": "/data/media/downloads/Silo.S02.REPACK.1080p.ITA-ENG.MULTI.WEBRip.x265.AAC-V3SP4EV3R",
-      "bytes": 6086437053,
+      "bytes": 6086459392,
+      "apparent_bytes": 6086437053,
       "files": 10,
       "dirs": 1,
       "proofs": {
@@ -1849,22 +1792,9 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/Home.Improvement.S01.DVDRip.DD2.0.x264-Hype[rartv]",
-      "bytes": 5826540748,
-      "files": 14,
-      "dirs": 2,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 14 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
       "path": "/data/media/downloads/Lioness.2023.Season.2.COMPLETE.1080p.AMZN.WEB-DL.x264.ESubs.[5.4GB].[MP4].[S02.Full]-[y2flix]",
-      "bytes": 5771512828,
+      "bytes": 5771558912,
+      "apparent_bytes": 5771512828,
       "files": 17,
       "dirs": 1,
       "proofs": {
@@ -1878,7 +1808,8 @@
     },
     {
       "path": "/data/media/downloads/Cowboy.Bebop.S01.1080p.BRRIP.x265.OPUS51.DUAL-EMPATHY",
-      "bytes": 5759685288,
+      "bytes": 5759737856,
+      "apparent_bytes": 5759685288,
       "files": 28,
       "dirs": 1,
       "proofs": {
@@ -1892,7 +1823,8 @@
     },
     {
       "path": "/data/media/downloads/Melania (2026) [2160p] [4K] [WEB] [5.1] [YTS.BZ]",
-      "bytes": 4988337660,
+      "bytes": 4988346368,
+      "apparent_bytes": 4988337660,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -1906,7 +1838,8 @@
     },
     {
       "path": "/data/media/downloads/Seinfeld.1989.S01.1080p.BluRay.DDP.5.1.x265-edge2020",
-      "bytes": 4856093783,
+      "bytes": 4856102912,
+      "apparent_bytes": 4856093783,
       "files": 5,
       "dirs": 1,
       "proofs": {
@@ -1920,7 +1853,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E18E19 The Raincoats 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 4756486760,
+      "bytes": 4756496384,
+      "apparent_bytes": 4756486760,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -1934,7 +1868,8 @@
     },
     {
       "path": "/data/media/downloads/Silo.S03.1080p.WEBRip.10Bit.DDP5.1.x265-NeoNoir",
-      "bytes": 4746691992,
+      "bytes": 4746719232,
+      "apparent_bytes": 4746691992,
       "files": 10,
       "dirs": 1,
       "proofs": {
@@ -1948,7 +1883,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Special Ops Lioness S01 1080p 10bit WEBRip 6CH x265 HEVC-PSA",
-      "bytes": 4279153007,
+      "bytes": 4279181312,
+      "apparent_bytes": 4279153007,
       "files": 10,
       "dirs": 2,
       "proofs": {
@@ -1962,7 +1898,8 @@
     },
     {
       "path": "/data/media/downloads/unholy-fix",
-      "bytes": 3996158056,
+      "bytes": 3996160000,
+      "apparent_bytes": 3996158056,
       "files": 1,
       "dirs": 1,
       "proofs": {
@@ -1976,7 +1913,8 @@
     },
     {
       "path": "/data/media/downloads/Fate\u2044stay night, Heaven's Feel I. Presage Flower (2017) VOSTFR 1080p 10bits BluRay x265 AAC 5.1 v2 -Punisher694.mkv",
-      "bytes": 3913203754,
+      "bytes": 3913207808,
+      "apparent_bytes": 3913203754,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -1990,7 +1928,8 @@
     },
     {
       "path": "/data/media/downloads/THE GHOST IN THE SHELL - Season 1",
-      "bytes": 3555678766,
+      "bytes": 3555700736,
+      "apparent_bytes": 3555678766,
       "files": 10,
       "dirs": 1,
       "proofs": {
@@ -2003,8 +1942,69 @@
       "reasons": []
     },
     {
+      "path": "/data/media/downloads/Seinfeld.1989.S07.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 3321782272,
+      "apparent_bytes": 16213572878,
+      "files": 15,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 15 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Seinfeld.1989.S09.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 3249864704,
+      "apparent_bytes": 20709310605,
+      "files": 19,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 19 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Seinfeld.1989.S06.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 3055640576,
+      "apparent_bytes": 20335134362,
+      "files": 20,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 20 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Seinfeld.1989.S08.1080p.BluRay.DDP.5.1.x265-edge2020",
+      "bytes": 3018170368,
+      "apparent_bytes": 21488300738,
+      "files": 22,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 22 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
       "path": "/data/media/downloads/krash2-import",
-      "bytes": 2686269935,
+      "bytes": 2690252800,
+      "apparent_bytes": 2686269935,
       "files": 1821,
       "dirs": 218,
       "proofs": {
@@ -2018,68 +2018,13 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E22 The Opposite 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2566360028,
+      "bytes": 2566369280,
+      "apparent_bytes": 2566360028,
       "files": 3,
       "dirs": 1,
       "proofs": {
         "P1_device": "PASS (single device)",
         "P2_nlink": "PASS (all 3 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E04 The Sniffing Accountant 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2563791142,
-      "files": 3,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 3 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E21 The Hamptons 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2563770324,
-      "files": 3,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 3 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E08 The Barber 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2558331538,
-      "files": 3,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 3 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E01 The Mango 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2556724781,
-      "files": 1,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 1 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -2088,7 +2033,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E15 The Pie 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2554970050,
+      "bytes": 2554978304,
+      "apparent_bytes": 2554970050,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -2102,7 +2048,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E09 The Masseuse 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2554941924,
+      "bytes": 2554949632,
+      "apparent_bytes": 2554941924,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -2116,7 +2063,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E17 The Wife 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2554938397,
+      "bytes": 2554949632,
+      "apparent_bytes": 2554938397,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -2130,7 +2078,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E12 The Stall 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2552442523,
+      "bytes": 2552451072,
+      "apparent_bytes": 2552442523,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -2144,7 +2093,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E16 The Stand-In 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2551138291,
+      "bytes": 2551148544,
+      "apparent_bytes": 2551138291,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -2158,7 +2108,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E14 The Marine Biologist 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2542001947,
+      "bytes": 2542010368,
+      "apparent_bytes": 2542001947,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -2172,7 +2123,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E07 The Non-Fat Yogurt 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2524574387,
+      "bytes": 2524581888,
+      "apparent_bytes": 2524574387,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -2186,7 +2138,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E02 The Puffy Shirt 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2521241912,
+      "bytes": 2521251840,
+      "apparent_bytes": 2521241912,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -2200,7 +2153,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E05 The Bris 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2493272556,
+      "bytes": 2493280256,
+      "apparent_bytes": 2493272556,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -2213,8 +2167,9 @@
       "reasons": []
     },
     {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E06 The Lip Reader 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2489323306,
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E08 The Barber 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
+      "bytes": 2480877568,
+      "apparent_bytes": 2558331538,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -2228,7 +2183,8 @@
     },
     {
       "path": "/data/media/downloads/Star.Trek.Strange.New.Worlds.S04E08.1080p.WEB.h264-ETHEL[EZTVx.to].mkv",
-      "bytes": 2449338779,
+      "bytes": 2449342464,
+      "apparent_bytes": 2449338779,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2242,7 +2198,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E20 The Fire 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
-      "bytes": 2439109172,
+      "bytes": 2439118848,
+      "apparent_bytes": 2439109172,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -2256,7 +2213,8 @@
     },
     {
       "path": "/data/media/downloads/Lioness.2023.S03E07.1080p.WEB.h264-ETHEL[EZTVx.to].mkv",
-      "bytes": 2433297609,
+      "bytes": 2433298432,
+      "apparent_bytes": 2433297609,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2270,7 +2228,8 @@
     },
     {
       "path": "/data/media/downloads/star.trek.strange.new.worlds.s04e09.1080p.web.h264-cakes[EZTVx.to].mkv",
-      "bytes": 2425371005,
+      "bytes": 2425372672,
+      "apparent_bytes": 2425371005,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2284,7 +2243,8 @@
     },
     {
       "path": "/data/media/downloads/The.Office.US.S01.1080p.BluRay.x265-RARBG",
-      "bytes": 2263060157,
+      "bytes": 2263101440,
+      "apparent_bytes": 2263060157,
       "files": 19,
       "dirs": 8,
       "proofs": {
@@ -2298,7 +2258,8 @@
     },
     {
       "path": "/data/media/downloads/Guardians.of.the.Galaxy.Vol.3.2023.1080p.BluRay.1600MB.DD5.1.x264-GalaxyRG[TGx]",
-      "bytes": 1779569917,
+      "bytes": 1779580928,
+      "apparent_bytes": 1779569917,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -2312,7 +2273,8 @@
     },
     {
       "path": "/data/media/downloads/[Yameii] Re ZERO, Starting Life in Another World - S04E13 v2 [English Dub] [CR WEB-DL 1080p H264 AAC] [1C66045E].mkv",
-      "bytes": 1778690164,
+      "bytes": 1778692096,
+      "apparent_bytes": 1778690164,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2326,7 +2288,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E11.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1768994941,
+      "bytes": 1768996864,
+      "apparent_bytes": 1768994941,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2340,7 +2303,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E08.Who.Are.You.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1735970538,
+      "bytes": 1735970816,
+      "apparent_bytes": 1735970538,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2354,7 +2318,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E10.Murder.Is.a.Habit.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1707928066,
+      "bytes": 1707929600,
+      "apparent_bytes": 1707928066,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2368,7 +2333,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E07.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1702145708,
+      "bytes": 1702146048,
+      "apparent_bytes": 1702145708,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2382,7 +2348,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E06.Julius.Juukulius.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1696560032,
+      "bytes": 1696563200,
+      "apparent_bytes": 1696560032,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2396,7 +2363,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E12.From.Now.On.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1694907670,
+      "bytes": 1694908416,
+      "apparent_bytes": 1694907670,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2410,7 +2378,8 @@
     },
     {
       "path": "/data/media/downloads/ReZERO.-Starting.Life.in.Another.World-.S04E09.Empty.Shell.1080p.CR.WEB-DL.MULTi.AAC2.0.H.264.MSubs-ToonsHub.mkv",
-      "bytes": 1692215815,
+      "bytes": 1692217344,
+      "apparent_bytes": 1692215815,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2424,21 +2393,8 @@
     },
     {
       "path": "/data/media/downloads/Re.ZERO.Starting.Life.in.Another.World.2016.S04E16.1080p.CR.WEB-DL.AAC2.0.H.264-AnoZu.mkv",
-      "bytes": 1661420923,
-      "files": 1,
-      "dirs": 0,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 1 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/Dragon.Ball.S01E01.UNCENSORED.REMASTERED.MULTi.1080p.BluRay.x264-T3KASHi.mkv",
-      "bytes": 1561967947,
+      "bytes": 1661423616,
+      "apparent_bytes": 1661420923,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2452,7 +2408,8 @@
     },
     {
       "path": "/data/media/downloads/Re ZERO Starting Life In Another World S04E02 MULTi AD 1080p CR WEB-DL AAC2.0 x264-Tsundere-Raws.mkv",
-      "bytes": 1521790637,
+      "bytes": 1521790976,
+      "apparent_bytes": 1521790637,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2466,7 +2423,8 @@
     },
     {
       "path": "/data/media/downloads/Re ZERO Starting Life In Another World S04E03 MULTi AD 1080p CR WEB-DL AAC2.0 x264-Tsundere-Raws.mkv",
-      "bytes": 1518047121,
+      "bytes": 1518047232,
+      "apparent_bytes": 1518047121,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2480,7 +2438,8 @@
     },
     {
       "path": "/data/media/downloads/Re.ZERO.Starting.Life.in.Another.World.S04E14.Five.Obstacles.1080p.CR.WEB-DL.DUAL.AAC2.0.H.264-VARYG.mkv",
-      "bytes": 1512250405,
+      "bytes": 1512251392,
+      "apparent_bytes": 1512250405,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2494,7 +2453,8 @@
     },
     {
       "path": "/data/media/downloads/Re ZERO, Starting Life In Another World S04E01 MULTi 1080p WEB x264 AAC -Tsundere-Raws (CR).mkv",
-      "bytes": 1510480222,
+      "bytes": 1510481920,
+      "apparent_bytes": 1510480222,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2508,7 +2468,8 @@
     },
     {
       "path": "/data/media/downloads/Re.ZERO.Starting.Life.in.Another.World.2016.S04E15.1080p.CR.WEB-DL.AAC2.0.H.264-AnoZu.mkv",
-      "bytes": 1476791228,
+      "bytes": 1476792320,
+      "apparent_bytes": 1476791228,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2522,7 +2483,8 @@
     },
     {
       "path": "/data/media/downloads/Re ZERO, Starting Life in Another World S04E04 VOSTFR 1080p WEB x264 AAC -Tsundere-Raws (CR).mkv",
-      "bytes": 1437295438,
+      "bytes": 1437298688,
+      "apparent_bytes": 1437295438,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2536,26 +2498,13 @@
     },
     {
       "path": "/data/media/downloads/Re ZERO, Starting Life in Another World S04E05 VOSTFR 1080p WEB x264 AAC -Tsundere-Raws (CR).mkv",
-      "bytes": 1435223019,
+      "bytes": 1435226112,
+      "apparent_bytes": 1435223019,
       "files": 1,
       "dirs": 0,
       "proofs": {
         "P1_device": "PASS (single device)",
         "P2_nlink": "PASS (all 1 nlink==1)",
-        "P3_library": "PASS (no library reference)",
-        "P4_client": "PASS (not in download client)"
-      },
-      "eligible": true,
-      "reasons": []
-    },
-    {
-      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E03 The Glasses 1080p PLAY WEB-DL AAC2 0 H 264-FLUX",
-      "bytes": 1421658599,
-      "files": 3,
-      "dirs": 1,
-      "proofs": {
-        "P1_device": "PASS (single device)",
-        "P2_nlink": "PASS (all 3 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -2564,7 +2513,8 @@
     },
     {
       "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E11 The Conversion 1080p PLAY WEB-DL AAC2 0 H 264-FLUX",
-      "bytes": 1417340183,
+      "bytes": 1417351168,
+      "apparent_bytes": 1417340183,
       "files": 3,
       "dirs": 1,
       "proofs": {
@@ -2577,13 +2527,44 @@
       "reasons": []
     },
     {
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E01 The Mango 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
+      "bytes": 921436160,
+      "apparent_bytes": 2556724781,
+      "files": 1,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 1 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
       "path": "/data/media/downloads/ReZero.kara.Hajimeru.Isekai.Seikatsu.S04E17.1080p.AMZN.WEB-DL.JPN.DDP2.0.H.264-ToonsHub.mkv",
-      "bytes": 859411495,
+      "bytes": 859414528,
+      "apparent_bytes": 859411495,
       "files": 1,
       "dirs": 0,
       "proofs": {
         "P1_device": "PASS (single device)",
         "P2_nlink": "PASS (all 1 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/The.Office.US.S05.1080p.BluRay.x264-decibeL[rartv]",
+      "bytes": 827719680,
+      "apparent_bytes": 67861501578,
+      "files": 25,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 25 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -2592,12 +2573,103 @@
     },
     {
       "path": "/data/media/downloads/Minions.and.More.Volume.1.2022.1080p.WEBRip.x265-RBG.mp4",
-      "bytes": 816006887,
+      "bytes": 816009216,
+      "apparent_bytes": 816006887,
       "files": 1,
       "dirs": 0,
       "proofs": {
         "P1_device": "PASS (single device)",
         "P2_nlink": "PASS (all 1 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E21 The Hamptons 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
+      "bytes": 722563072,
+      "apparent_bytes": 2563770324,
+      "files": 3,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 3 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S07.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 703332352,
+      "apparent_bytes": 9553106618,
+      "files": 25,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 25 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E03 The Glasses 1080p PLAY WEB-DL AAC2 0 H 264-FLUX",
+      "bytes": 653619200,
+      "apparent_bytes": 1421658599,
+      "files": 3,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 3 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S08.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 606171136,
+      "apparent_bytes": 12656125180,
+      "files": 30,
+      "dirs": 2,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 30 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S06.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 583282688,
+      "apparent_bytes": 10342881601,
+      "files": 26,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 26 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S04.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 511655936,
+      "apparent_bytes": 11015807737,
+      "files": 25,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 25 nlink==1)",
         "P3_library": "PASS (no library reference)",
         "P4_client": "PASS (not in download client)"
       },
@@ -2606,7 +2678,8 @@
     },
     {
       "path": "/data/media/downloads/Lioness.2023.S03E03.iNTERNAL.480p.x264-mSD[EZTVx.to].mkv",
-      "bytes": 422458714,
+      "bytes": 422461440,
+      "apparent_bytes": 422458714,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2619,8 +2692,129 @@
       "reasons": []
     },
     {
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E06 The Lip Reader 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
+      "bytes": 414920704,
+      "apparent_bytes": 2489323306,
+      "files": 3,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 3 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
       "path": "/data/media/downloads/Lioness.2023.S03E05.iNTERNAL.480p.x264-mSD[EZTVx.to].mkv",
-      "bytes": 404591456,
+      "bytes": 404594688,
+      "apparent_bytes": 404591456,
+      "files": 1,
+      "dirs": 0,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 1 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S03.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 399810560,
+      "apparent_bytes": 10514929996,
+      "files": 25,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 25 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/www.UIndex.org    -    Seinfeld S05E04 The Sniffing Accountant 1080p AMZN WEB-DL DDP2 0 H 264-NTb",
+      "bytes": 390414336,
+      "apparent_bytes": 2563791142,
+      "files": 3,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 3 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S05.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 354951168,
+      "apparent_bytes": 10117556158,
+      "files": 25,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 25 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S02.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 351854592,
+      "apparent_bytes": 10803843679,
+      "files": 26,
+      "dirs": 2,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 26 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/[Hako] Towa no Yuugure - S01 (WEB 1080p HEVC AAC)",
+      "bytes": 223617024,
+      "apparent_bytes": 18127994446,
+      "files": 13,
+      "dirs": 1,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 13 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Home.Improvement.S01.DVDRip.DD2.0.x264-Hype[rartv]",
+      "bytes": 63598592,
+      "apparent_bytes": 5826540748,
+      "files": 14,
+      "dirs": 2,
+      "proofs": {
+        "P1_device": "PASS (single device)",
+        "P2_nlink": "PASS (all 14 nlink==1)",
+        "P3_library": "PASS (no library reference)",
+        "P4_client": "PASS (not in download client)"
+      },
+      "eligible": true,
+      "reasons": []
+    },
+    {
+      "path": "/data/media/downloads/Dragon.Ball.S01E01.UNCENSORED.REMASTERED.MULTi.1080p.BluRay.x264-T3KASHi.mkv",
+      "bytes": 2588672,
+      "apparent_bytes": 1561967947,
       "files": 1,
       "dirs": 0,
       "proofs": {
@@ -2634,7 +2828,8 @@
     },
     {
       "path": "/data/media/downloads/Sailor.Moon.SuperS.S04.MULTi.1080p.BluRay.x265-T3KASHi",
-      "bytes": 1776,
+      "bytes": 4096,
+      "apparent_bytes": 1776,
       "files": 1,
       "dirs": 1,
       "proofs": {
@@ -2649,6 +2844,7 @@
     {
       "path": "/data/media/downloads/complete",
       "bytes": 0,
+      "apparent_bytes": 0,
       "files": 0,
       "dirs": 1,
       "proofs": {
@@ -2663,6 +2859,7 @@
     {
       "path": "/data/media/downloads/incomplete",
       "bytes": 0,
+      "apparent_bytes": 0,
       "files": 0,
       "dirs": 1,
       "proofs": {

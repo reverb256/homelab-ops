@@ -378,12 +378,30 @@ PY
   fi
 fi
 
+# ------------------------------------------------------- 5. HOST DRIFT (D9)
+# homelab-ops has no ArgoCD Application: `omarchy/<host>/` is delivered by that
+# host's own apply.sh, so installed state can drift from the committed tree and
+# nothing reports it. Detection only - drift-check.sh has no apply mode, and an
+# unreachable host is reported FINDING (unknown is never "in sync").
+DC="$HOME/homelab-ops/scripts/verify/drift-check.sh"
+if [ -x "$DC" ]; then
+  "$DC" 2>/dev/null | grep -E '^(FINDING|OK|NOTE)' | while IFS= read -r line; do
+    printf '%s\n' "$line"
+    case "$line" in
+      FINDING*) printf 'drift\n' >> "$F_FILE" ;;
+      NOTE*)    printf 'drift\n' >> "$N_FILE" ;;
+    esac
+  done
+else
+  emit NOTE D9 drift-check "$DC" "not executable" "run drift-check.sh for committed-vs-installed drift"
+fi
+
 # --------------------------------------------------------------- SUMMARY
 echo
 echo "== summary =="
 FINDINGS=$(count "$F_FILE"); NOTES=$(count "$N_FILE"); GUARD_FAIL=$(count "$G_FILE")
 echo "findings: $FINDINGS   notes: $NOTES   guard-failures: $GUARD_FAIL"
-echo "sections covered: D1 never-succeeded, D2 stale-success, D3 stale-producer(+registry), D3b no-metrics/no-rule, D4 zero-payload-ingest, D5 schedule-missed/smoke-job, D6 suspended/hides-failures, D7 hermes-cron output+dispatch, D8 backup failed/stalled/duplicate"
+echo "sections covered: D1 never-succeeded, D2 stale-success, D3 stale-producer(+registry), D3b no-metrics/no-rule, D4 zero-payload-ingest, D5 schedule-missed/smoke-job, D6 suspended/hides-failures, D7 hermes-cron output+dispatch, D8 backup failed/stalled/duplicate, D9 committed-tree-vs-host drift (+leftover occupancy)"
 if [ "$GUARD_FAIL" -gt 0 ]; then echo "[INCONCLUSIVE] a guard failed — empty input is never clean"; exit 2; fi
 if [ "$FINDINGS" -gt 0 ]; then echo "RESULT: $FINDINGS silent-failure instance(s) — each FAIL names the smallest next action."; exit 1; fi
 echo "RESULT: OK (clean on this sweep's coverage — extend the registry when a producer is added)"
