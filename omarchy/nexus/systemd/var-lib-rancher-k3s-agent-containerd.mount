@@ -1,0 +1,16 @@
+[Unit]
+Description=Containerd store on the fast tier
+Documentation=https://github.com/reverb256/homelab-ops
+DefaultDependencies=no
+After=data-fast.mount
+RequiresMountsFor=/data/fast
+Before=k3s.service
+
+[Mount]
+What=/data/fast/k3s/containerd
+Where=/var/lib/rancher/k3s/agent/containerd
+Type=none
+Options=bind
+
+[Install]
+WantedBy=local-fs.target
