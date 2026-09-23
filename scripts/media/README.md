@@ -128,6 +128,8 @@ the normal route.
 
 7 network mounts live inside `/data/media`: `archive` (nfs4), `krash2-smb` and
 `krash3-smb` (cifs), `krash2-media`, `krash3-media`, plus their autofs parents.
+Since 2026-09-23 all four cifs mounts carry `noexec` — see "No execution from
+the media mounts" below for the recipe and for what it does *not* cover.
 Every size and delete operation is filesystem-scoped: a walk that crosses a
 device boundary fails the item closed, and a delete re-checks `st_dev`
 immediately before the unlink.
@@ -143,3 +145,66 @@ ineligible.
 scripts/verify/leftover-occupancy.sh          # detection only, never deletes
 scripts/media/apply-leftovers.sh --json scripts/media/leftover-manifest.json
 ```
+
+## No execution from the media mounts (`noexec`, 2026-09-23)
+
+A live cryptominer and a trojan disguised as an episode file were found on the
+Windows download boxes (krash2 / krash3) on 2026-09-23 and the Windows side was
+hardened. The Linux half of the same risk is that the k3s nodes mounted those
+SMB shares **executable**, so anything dropped into the media tree could be run
+from the mount. All four CIFS mounts on **nexus** and **forge** now carry
+`noexec`. This is the recipe, how it was applied, and what it does not cover.
+
+The four `/etc/fstab` lines (only the `credentials=` path differs between
+nodes; the option list is identical):
+
+```
+//10.1.1.79/krash2-storage  /data/media/krash2-smb    cifs credentials=/root/.creds/krash2-smb,uid=j_kro,gid=users,file_mode=0775,dir_mode=0775,noperm,noexec,vers=3.0,_netdev,x-systemd.automount,x-systemd.mount-timeout=30 0 0
+//10.1.1.150/krash3-storage /data/media/krash3-smb    cifs credentials=/root/.creds/krash3-smb,uid=j_kro,gid=users,file_mode=0775,dir_mode=0775,noperm,noexec,vers=3.0,_netdev,x-systemd.automount,x-systemd.mount-timeout=30 0 0
+//10.1.1.79/Media           /data/media/krash2-media  cifs credentials=/root/.creds/krash2-smb,uid=j_kro,gid=users,file_mode=0775,dir_mode=0775,noperm,noexec,vers=3.1.1,_netdev,x-systemd.automount,x-systemd.mount-timeout=30 0 0
+//10.1.1.150/media          /data/media/krash3-media  cifs credentials=/root/.creds/krash3-smb,uid=j_kro,gid=users,file_mode=0775,dir_mode=0775,noperm,noexec,vers=3.1.1,_netdev,x-systemd.automount,x-systemd.mount-timeout=30 0 0
+```
+
+Idempotent, fail-closed scripts (run from zephyr; they back `/etc/fstab` up to
+`/etc/fstab.bak-<UTC stamp>-noexec` first):
+
+```
+ssh nexus "bash -s" < scripts/media/apply-noexec-cifs-mounts.sh
+ssh forge "bash -s" < scripts/media/apply-noexec-cifs-mounts.sh
+ssh nexus "bash -s" < scripts/media/verify-noexec-cifs-mounts.sh
+```
+
+Three things that will bite you:
+
+- **Editing fstab changes nothing on a running host.** All four are
+  `x-systemd.automount` with `timeout=0`, so they never idle out and the live
+  superblock keeps the options it was mounted with. `systemctl daemon-reload`
+  regenerates the unit only (`systemctl cat` on
+  `data-media-krash2\x2dmedia.mount` then reads `Options=…,noexec,…`). The live
+  flag has to be put there with `mount -o remount,noexec <mountpoint>` — on cifs
+  that preserves every other option (credentials, vers, cache) and needs no
+  unmount, so no pod is disturbed. `mount | grep` is the only proof of the live
+  state.
+- **`systemctl show -p Options <unit>` is not that proof.** For an *active*
+  unit it returns systemd's cached copy of `/proc/self/mountinfo`, which lags a
+  hand remount by seconds: the same read showed `noexec` present on two units
+  and "missing" on the other two immediately after an identical remount of all
+  four, and all four were correct a minute later. Read the generator output or
+  the kernel, not that property.
+- **The containers that mount these paths still execute from them.** sonarr,
+  radarr, jellyfin and qbittorrent take them as `hostPath` volumes, and a bind
+  mount inherits per-mount flags from the mount it was cloned from *at clone
+  time*. Their pods were created before the remount, so inside them `/krash2`
+  still reads `rw,relatime` and runs a script dropped on the share — measured
+  with a probe, not assumed. Recreating those pods is what closes it; nothing in
+  the media stack executes from the mount (`/proc/*/exe` under
+  `/data/media/krash*` is empty and the *arr / Jellyfin contract is read/write
+  only), so a recreate is safe.
+
+Verified on both nodes 2026-09-23T20:35Z: `mount | grep` shows `noexec` 4/4 on
+each; a `#!/bin/sh` probe on each of the four mounts fails with
+`Permission denied` (rc=126) while `cat` of the same file succeeds, a copy of
+`/bin/true` is refused, and the same probe runs normally on `/tmp`; `df` on all
+four still reports; `findmnt --verify` exits 0 (its two warnings — `/swap/swapfile`
+and a credential-file permission probe — are pre-existing and unrelated);
+`kubectl -n media get pods` is all Running/Ready.
