@@ -222,3 +222,15 @@ forge and sentry healthy and watch `/healthz/etcd`). The two are not mutually bl
 
 **Ownership:** `OWNERSHIP.md` holds one owner per failure mode — this reconciliation is recorded
 there too, so no future agent follows P3 into the collision.
+
+## DECISION (owner, 2026-09-23)
+
+**The EVO goes to the fast tier.** P3 (bcache0 cache re-attach) is CLOSED, not merely gated:
+it loses the contested device, and a cache in front of a volume whose failure mode is hanging
+reads would not fix it. The media volume's own call (replace vs keep pruning) remains open and
+is about a device, not a cache.
+
+Execution is bound by this plan's own gates: nodes Ready, etcd health recorded, baselines in the
+repo, rollback rehearsed on Phase 3 before Phase 2 is touched, and every copy throttled
+(`ionice -c3 nice -n 19`) - the plan's bare `rsync` is amended here, because this host has
+already been wedged once by unthrottled IO.

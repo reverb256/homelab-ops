@@ -60,6 +60,6 @@ layout, read the evidence above first: the source device is healthy and the data
 
 ## Contested resource: /dev/sdb (added 2026-09-23)
 
-P3 (bcache0 cache re-attach) and FAST-TIER-PLAN.md both claim sdb and cannot both have it.
+DECIDED 2026-09-23: the owner chose the fast tier. P3 is CLOSED. Detail in FAST-TIER-PLAN.md.
 Reconciliation, evidence and recommendation are in FAST-TIER-PLAN.md; P3 is GATED on the owner
 choosing replace-vs-prune for the 4 TB volume. P1 (prune) is unaffected and can proceed.
