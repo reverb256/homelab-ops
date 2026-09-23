@@ -1,1 +1,49 @@
-Host key verification failed.
+#!/usr/bin/env bash
+# oracle-idle-watch — the two things ONLY this host can see:
+#   1. Does the tenancy cost money?   (budgets API actual-spend — must stay 0.00)
+#   2. Is the instance still alive in OCI's eyes? (lifecycle-state)
+#
+# Everything else about the instance — down, unreachable, drifting toward Oracle's
+# idle window — belongs to the vmalert rule `oracle-free-tier`, which owns metrics.
+# One owner per failure mode: no duplicated coverage, no mail scraping, no ping.
+#
+# Managed from homelab-ops/omarchy/sentry — do not hand-edit on the host.
+set -uo pipefail
+
+BUDGET_ID="ocid1.budget.oc1.ca-toronto-1.amaaaaaadojzjliayemu4jobwqexbz2poufhyigtxpnisdszxvgcqjy22ytq"
+TENANCY_ID="ocid1.tenancy.oc1..aaaaaaaaagggbwndtjlzcuywprjbit6d6ybwcu5qbt746bqelluju5szu6uq"
+OCI_BIN="$HOME/.oci/venv/bin/oci"
+ALERT_FEED_URL="${ALERT_FEED_URL:-http://10.1.1.120:9799/alerts}"
+export PYTHONWARNINGS=ignore SUPPRESS_LABEL_WARNING=True
+
+alert() { # severity alertname summary
+  local payload
+  payload=$(printf '[{"labels":{"alertname":"%s","severity":"%s","source":"oracle-idle-watch"},"annotations":{"summary":"%s"},"startsAt":"%s"}]' \
+    "$2" "$1" "$3" "$(date -u +%Y-%m-%dT%H:%M:%SZ)")
+  if curl -s -m 10 -X POST -H 'Content-Type: application/json' -d "$payload" "$ALERT_FEED_URL" >/dev/null 2>&1; then
+    echo "ALERT [$1] $2 — $3"
+  else
+    echo "ALERT-POST-FAILED [$1] $2 — $3"
+  fi
+}
+
+if [ ! -x "$OCI_BIN" ] || [ ! -r "$HOME/.oci/config" ]; then
+  echo "skip: no OCI CLI or credentials on this host"
+  exit 0
+fi
+
+# --- 1. Money. The whole point of this tenancy is that it never costs anything. ---
+SPEND=$("$OCI_BIN" budgets budget budget get --budget-id "$BUDGET_ID" --query 'data."actual-spend"' 2>/dev/null | tr -d '"')
+case "${SPEND:-0}" in
+  0|0.0|null|"") echo "ok: tenancy spend = ${SPEND:-0}" ;;
+  *) alert critical OracleSpendDetected "tenancy actual spend is $SPEND — free tier only, must be 0.00. Investigate now." ;;
+esac
+
+# --- 2. Lifecycle: stopped/reclaimed shows up here first (metrics cannot: no host = no metrics). ---
+STATE=$("$OCI_BIN" compute instance list -c "$TENANCY_ID" --query 'data[0]."lifecycle-state"' 2>/dev/null | tr -d '"')
+case "${STATE:-none}" in
+  none)          echo "info: no instance provisioned yet" ;;
+  RUNNING)       echo "ok: instance RUNNING" ;;
+  PROVISIONING|STARTING|STOPPING) echo "info: instance $STATE (transitional)" ;;
+  *)             alert critical OracleInstanceDown "instance lifecycle-state=${STATE} — expected RUNNING" ;;
+esac
