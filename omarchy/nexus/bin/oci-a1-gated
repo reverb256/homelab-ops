@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Capacity-gated retry for an Always Free Ampere A1 instance (reverb256-edge-01).
+#
+# Why this shape (researched, not guessed):
+#   * OCI returns HTTP 429 TooManyRequests ("Too many requests for the user") when launches
+#     are fired too quickly — a naive tight loop throttles ITSELF and never reaches the
+#     capacity check. So: ask the capacity-report API first and only launch when it says
+#     capacity exists.
+#   * OUT_OF_HOST_CAPACITY is the real blocker in ca-toronto-1 (capacity report, 06:36Z).
+#     Retrying catches a window; it does not create capacity.
+#   * Capacity is per fault domain, so rotate across the three this AD has.
+#   * Exponential backoff: 90s -> 600s cap, 90 minute deadline, then it stops by itself.
+#
+# On success the launch response lands in /tmp/oci_launch_ok.json and the script exits 0.
+set -uo pipefail
+
+OCI=/home/j_kro/.oci/venv/bin/oci
+export PYTHONWARNINGS=ignore SUPPRESS_LABEL_WARNING=True
+TEN=ocid1.tenancy.oc1..aaaaaaaaagggbwndtjlzcuywprjbit6d6ybwcu5qbt746bqelluju5szu6uq
+AD=yqwh:CA-TORONTO-1-AD-1
+SUB=ocid1.subnet.oc1.ca-toronto-1.aaaaaaaalo2udyepvedgxrxmq2enirzawyfxtlskdrwboghmsy42rhi7wajq
+IMG=ocid1.image.oc1.ca-toronto-1.aaaaaaaauvwgf33retiicwp42eajjgjhopcuwkdk4yf5kmlxuomk6mbdlgwa  # arch-linux-arm64-cloudimg-20251128
+NAME=reverb256-edge-01
+KEY="$(cat /home/j_kro/.ssh/oci_vps_ed25519.pub)"
+FDS="FAULT-DOMAIN-1 FAULT-DOMAIN-2 FAULT-DOMAIN-3"
+SHAPE_AVAIL='[{"instanceShape":"VM.Standard.A1.Flex","instanceShapeConfig":{"ocpus":2,"memoryInGBs":12}}]'
+
+DEADLINE=$(( $(date +%s) + 5400 ))   # 90 minutes
+DELAY=90
+cycle=0
+
+while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+  cycle=$((cycle + 1))
+
+  cap=$("$OCI" compute compute-capacity-report create \
+          --compartment-id "$TEN" --availability-domain "$AD" \
+          --shape-availabilities "$SHAPE_AVAIL" \
+          --query 'data."shape-availabilities"[0]."availability-status"' --raw-output 2>&1)
+
+  if printf '%s' "$cap" | grep -qi AVAILABLE; then
+    fd=$(printf '%s\n' $FDS | shuf -n1)
+    out=$("$OCI" compute instance launch \
+            -c "$TEN" --availability-domain "$AD" --fault-domain "$fd" \
+            --shape VM.Standard.A1.Flex --shape-config '{"ocpus":2,"memoryInGBs":12}' \
+            --image-id "$IMG" --subnet-id "$SUB" --assign-public-ip true \
+            --display-name "$NAME" --boot-volume-size-in-gbs 50 \
+            --metadata "{\"ssh_authorized_keys\":\"${KEY}\"}" 2>&1)
+    if printf '%s' "$out" | grep -q '"id"'; then
+      printf '%s' "$out" > /tmp/oci_launch_ok.json
+      echo "$(date -u +%H:%M:%SZ) LAUNCHED on cycle $cycle (fault domain $fd)"
+      exit 0
+    fi
+    echo "$(date -u +%H:%M:%SZ) cycle $cycle fd=$fd: capacity=AVAILABLE but launch failed -> $(printf '%s' "$out" | grep -o '"code":[[:space:]]*"[^"]*"' | head -1)"
+  else
+    echo "$(date -u +%H:%M:%SZ) cycle $cycle: capacity=$cap -- launch not attempted (avoids the 429 throttle)"
+  fi
+
+  sleep "$DELAY"
+  DELAY=$(( DELAY * 2 )); [ "$DELAY" -gt 600 ] && DELAY=600
+done
+
+echo "$(date -u +%H:%M:%SZ) deadline reached after $cycle cycles: still no A1 capacity"
+exit 1
