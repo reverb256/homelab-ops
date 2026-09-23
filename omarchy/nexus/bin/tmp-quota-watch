@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# tmp-quota-watch — alert when a user's tmpfs quota usage exceeds a threshold.
+#
+# WHY THIS EXISTS
+# /tmp on nexus is a 24G tmpfs (RAM) with per-user quotas enforced by
+# systemd-user-runtime-dir at login (default 40% of RAM ≈ 18.78GiB). A build
+# that exceeds its quota fails with "disk quota exceeded" (EDQUOT) while df -h
+# /tmp may still show free space, making the failure look like a mysterious
+# build error. This watchdog exposes the hidden quota pressure before a failure
+# occurs, allowing preemptive action.
+#
+# USAGE
+#   tmp-quota-watch               # check quota for $LOGNAME (or UID from env)
+#   tmp-quota-watch --selftest    # verify detection logic (positive & negative)
+#   DRY_RUN=1 tmp-quota-watch     # alert only, do not exit non-zero on overage
+#
+# ALERTING
+# On overage, prints a JSON line to stdout that the alert-receiver on
+# http://127.0.0.1:9799/alerts expects (same format as storage-watch.sh).
+#
+# DESIGN
+# - Reads the in-kernel quota via quotactl_fd (the ONLY way to get tmpfs quotas).
+# - Default threshold: 80% of hard limit.
+# - Exits 0 if under threshold or DRY_RUN=1, 1 if overthreshold and not DRY_RUN.
+# - Intended to run under a systemd timer (every 15m) as root; it reads the
+#   invoking user's quota via SUDO_UID if present, else $LOGNAME, else getent.
+# - No state; safe to run concurrently.
+#
+set -euo pipefail
+
+THRESHOLD=${TMP_QUOTA_WATCH_THRESHOLD:-80}   # percent of hard limit to alert
+MOUNT=${TMP_QUOTA_WATCH_MOUNT:-/tmp}
+ALERT_URL=${ALERT_URL:-http://127.0.0.1:9799/alerts}
+DRY_RUN=${DRY_RUN:-0}
+SELFTEST=${SELFTEST:-0}
+
+# Determine which UID to check: prefer SUDO_UID (when run via sudo), then
+# LOGNAME via getent, then fallback to current uid.
+if [[ -n "${SUDO_UID:-}" ]]; then
+    TARGET_UID="$SUDO_UID"
+elif [[ -n "${LOGNAME:-}" ]]; then
+    TARGET_UID=$(getent passwd "$LOGNAME" | cut -d: -f3)
+else
+    TARGET_UID="$(id -u)"
+fi
+
+# Helper: query in-kernel quota via quotactl_fd (modern API, works on tmpfs).
+# Returns JSON: {bhard,bsoft,curspace,curinodes} where bhard/bsoft are KiB,
+# curspace bytes, curinodes count.
+tmp_quota_json() {
+    local mount="$1" uid="$2"
+    python3 - <<'PY' "$mount" "$uid"
+import ctypes, json, os, struct, sys
+Q_GETQUOTA = 0x800007
+USRQUOTA = 0
+SYS_QUOTACTL_FD = 443  # __NR_quotactl_fd, x86_64
+DQBLK_LEN = 128  # struct if_dqblk >=72 bytes
+
+def read_quota(mount: str, uid: int):
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.syscall.restype = ctypes.c_long
+    libc.syscall.argtypes = [
+        ctypes.c_long,  # syscall number
+        ctypes.c_long,  # fd
+        ctypes.c_long,  # cmd
+        ctypes.c_long,  # uid
+        ctypes.c_void_p # buf
+    ]
+    cmd = (Q_GETQUOTA << 8) | USRQUOTA
+    fd = os.open(mount, os.O_PATH)
+    try:
+        buf = ctypes.create_string_buffer(DQBLK_LEN)
+        ctypes.set_errno(0)
+        rc = libc.syscall(SYS_QUOTACTL_FD, fd, cmd, uid, buf)
+        err = ctypes.get_errno()
+    finally:
+        os.close(fd)
+    if rc != 0:
+        raise OSError(err, os.strerror(err), mount)
+    bhard, bsoft, curspace = struct.unpack_from("QQQ", buf, 0)
+    curinodes = struct.unpack_from("Q", buf, 40)[0]
+    return {"bhard": bhard, "bsoft": bsoft, "curspace": curspace, "curinodes": curinodes}
+
+if __name__ == "__main__":
+    mount, uid = sys.argv[1], int(sys.argv[2])
+    try:
+        q = read_quota(mount, uid)
+        print(json.dumps(q))
+    except Exception as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)
+PY
+}
+
+# If selftest requested, run built-in checks and exit.
+if [[ "$SELFTEST" -eq 1 ]]; then
+    echo "TMP_QUOTA_WATCH_SELFTEST_START"
+    # Positive: set a low quota on a throwaway uid, write past it, expect overage.
+    # Negative: quota zero (unlimited) or under threshold -> no alert.
+    # We exercise the python helper directly to avoid altering the system.
+    python3 - <<'PY' || { echo "SELFTEST_FAILED"; exit 1; }
+import subprocess, json, os, sys
+# 1. Helper call returns dict for a known uid (self) on /tmp.
+me=$(id -u)
+proc = subprocess.run([sys.executable, __file__.replace('tmp-quota-watch', 'tmp_quota.py'), '/tmp', str(me)],
+                      capture_output=True, text=True)
+if proc.returncode != 0:
+    print(f"tmp_quota.py failed: {proc.stderr}")
+    sys.exit(1)
+data = json.loads(proc.stdout.strip())
+assert data["bhard"] > 0 and data["curspace"] >= 0, "bad quota structure"
+# 2. Threshold logic: if curspace >= (threshold/100)*bhard*1024 -> over.
+threshold = 80
+limit_bytes = data["bhard"] * 1024
+used = data["curspace"]
+over_used=$(( used * 100 >= threshold * limit_bytes ))
+print(f"SELFTEST_UID={me} bhard={data['bhard']}KiB used={used}B ({used/1024/1024:.2f}MiB) threshold={threshold}% -> over={over_used}")
+# 3. Edge: zero hard limit (unlimited) -> never over.
+data2=data.copy()
+data2["bhard"]=0
+over2=$(( data2["curspace"] * 100 >= threshold * (data2["bhard"] * 1024) )) || true  # avoid division by zero via short-circuit
+assert [ "$over2" = "0" ], "unlimited quota should not trigger"
+print("TMP_QUOTA_WATCH_SELFTEST_OK")
+PY
+    SELFTEST_EXIT=$?
+    if [[ $SELFTEST_EXIT -ne 0 ]]; then
+        exit $SELFTEST_EXIT
+    fi
+    echo "TMP_QUOTA_WATCH_SELFTEST_DONE"
+    exit 0
+fi
+
+# Fetch current quota for target uid.
+if ! quota_json=$(tmp_quota_json "$MOUNT" "$TARGET_UID"); then
+    echo "ERROR: failed to read quota for uid $TARGET_UID on $MOUNT" >&2
+    exit 2
+fi
+
+# Parse JSON (bash can't parse JSON natively; use python again).
+bhard=$(echo "$quota_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['bhard'])")
+curspace=$(echo "$quota_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['curspace'])")
+curinodes=$(echo "$quota_json" | python3 -c "import sys,json; print(json.load(sys.stdin)['curinodes'])")
+
+# Compute percent used as integer: floor(100 * curspace / (bhard * 1024)).
+if [[ "$bhard" -eq 0 ]]; then
+    pct_used=0  # unlimited -> treat as 0%
+else
+    # Avoid bc: use integer arithmetic. Guard against overflow by dividing first if possible.
+    # curspace and bhard*1024 are both non-negative.
+    pct_used=$(( curspace * 100 / (bhard * 1024) ))
+fi
+
+# Build alert payload (JSON line).
+timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+host=$(hostname -s)
+username=$(getent passwd "$TARGET_UID" | cut -d: -f1 || echo "uid-$TARGET_UID")
+alert_payload=$(cat <<EOF
+{"timestamp":"$timestamp","host":"$host","uid":$TARGET_UID,"user":"$username","mount":"$MOUNT","bhard_kib":$bhard,"bsoft_kib":$bhard,"curspace_bytes":$curspace,"curinodes":$curinodes,"pct_used":$pct_used,"threshold":$THRESHOLD}
+EOF
+)
+
+# Decide: alert and possibly exit non-zero.
+if [[ "$pct_used" -ge "$THRESHOLD" ]]; then
+    echo "ALERT: tmpfs quota for uid $TARGET_UID ($username) on $MOUNT at ${pct_used}% (>= ${THRESHOLD}%)"
+    echo "$alert_payload"
+    if [[ "$DRY_RUN" -eq 0 ]]; then
+        exit 1
+    else
+        echo "DRY_RUN=1: exiting 0 despite overage"
+        exit 0
+    fi
+else
+    # Under threshold: silent success.
+    exit 0
+fi

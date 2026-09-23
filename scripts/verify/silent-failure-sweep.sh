@@ -228,14 +228,23 @@ for mod,v in sorted(d.items()):
     ls=v.get('lastSuccess')
     age_h=(now-datetime.fromisoformat(ls.replace('Z','+00:00'))).total_seconds()/3600 if ls else None
     sig=f"runs={runs} records={rec} failures={f} lastSuccess={age_h:.1f}h ago" if age_h else f"runs={runs} records={rec} failures={f}"
-    if runs>0 and rec==0:
-        emit('FAIL','D4 zero-payload-ingest',f"quill:{mod}",sig,"a green run that persists 0 records (found>0, ingested=0) is a silent stall")
-    elif runs>0 and rec/max(runs,1) < 0.5:
-        emit('NOTE','D4 thin-payload-ingest',f"quill:{mod}",sig,f"~{rec/runs:.2f} records/run: nearly everything is being dropped")
-    elif runs==0:
+    # D4 CANNOT JUDGE PAYLOAD HEALTH FROM THIS LEDGER, and used to pretend it could.
+    #   * `records` is a LAST-RUN SNAPSHOT -- recordIngest replaces it, never accumulates --
+    #     so `records/runs` divides a snapshot by a cumulative count and means nothing. That is
+    #     where the bogus "0.07 records/run" came from.
+    #   * There is no `found` field in the ledger at all, so the old FAIL message asserted a
+    #     condition the ledger cannot represent.
+    # So: FAIL only on an explicit error signal, and NOTE the rest, naming the gap. This becomes
+    # a real payload check once the ledger carries `found` plus cumulative totals; until then a
+    # PASS here would be a lie and a FAIL would be a false alarm. Both are worse than a NOTE.
+    if f > 0 and rec == 0:
+        emit('FAIL','D4 no-payload-with-errors',f"quill:{mod}",sig,"a run reported failures AND persisted no records")
+    elif runs == 0:
         emit('NOTE','D4 no-runs',f"quill:{mod}",sig,"ledger has no runs: the ledger itself may be wrong")
+    elif rec == 0:
+        emit('NOTE','D4 payload-unverifiable',f"quill:{mod}",sig,"last run persisted 0 and the ledger has no 'found': not testable from here")
     else:
-        emit('PASS','D4 payload-ingest',f"quill:{mod}",sig,f"{rec/runs:.1f} records/run")
+        emit('NOTE','D4 ledger-readable',f"quill:{mod}",sig,f"last run persisted {rec} record(s); cumulative is not tracked")
 PY
 fi
 
@@ -444,7 +453,7 @@ echo
 echo "== summary =="
 FINDINGS=$(count "$F_FILE"); NOTES=$(count "$N_FILE"); GUARD_FAIL=$(count "$G_FILE")
 echo "findings: $FINDINGS   notes: $NOTES   guard-failures: $GUARD_FAIL"
-echo "sections covered: D1 never-succeeded, D2 stale-success, D3 stale-producer(+registry), D3b no-metrics/no-rule, D4 zero-payload-ingest, D5 schedule-missed/smoke-job, D6 suspended/hides-failures, D7 hermes-cron output+dispatch, D8 backup failed/stalled/duplicate, D9 committed-tree-vs-host drift (+leftover occupancy), D10 encrypted-root trim declared-vs-effective"
+echo "sections covered: D1 never-succeeded, D2 stale-success, D3 stale-producer(+registry), D3b no-metrics/no-rule, D4 ingest-ledger-readable(payload-unverifiable), D5 schedule-missed/smoke-job, D6 suspended/hides-failures, D7 hermes-cron output+dispatch, D8 backup failed/stalled/duplicate, D9 committed-tree-vs-host drift (+leftover occupancy), D10 encrypted-root trim declared-vs-effective"
 if [ "$GUARD_FAIL" -gt 0 ]; then echo "[INCONCLUSIVE] a guard failed — empty input is never clean"; exit 2; fi
 if [ "$FINDINGS" -gt 0 ]; then echo "RESULT: $FINDINGS silent-failure instance(s) — each FAIL names the smallest next action."; exit 1; fi
 echo "RESULT: OK (clean on this sweep's coverage — extend the registry when a producer is added)"

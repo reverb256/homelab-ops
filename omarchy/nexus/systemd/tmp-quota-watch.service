@@ -1,0 +1,12 @@
+[Unit]
+Description=Watch for per-user tmpfs quota pressure (EDQUOT precursor) on nexus
+Documentation=https://github.com/reverb256/homelab-ops
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/tmp-quota-watch
+Nice=10
+
+[Install]
+WantedBy=timers.target
