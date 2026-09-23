@@ -6,8 +6,9 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=root
-ExecStart=/usr/bin/flock -n /run/oci-a1-attempt.lock /usr/local/bin/oci-a1-attempt
-Nice=19
-IOSchedulingClass=idle
+User=j_kro
+Group=j_kro
+Environment=HOME=/home/j_kro
+Environment=OCI_CLI_CONFIG_FILE=/home/j_kro/.oci/config
+ExecStart=/usr/bin/flock -n /home/j_kro/.oci/attempt.lock /usr/local/bin/oci-a1-attempt
 TimeoutStartSec=3000
