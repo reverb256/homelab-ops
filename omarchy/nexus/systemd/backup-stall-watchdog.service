@@ -4,6 +4,10 @@ Documentation=https://github.com/reverb256/homelab-ops
 After=network-online.target
 
 [Service]
+# Exit 1 means "I found something", not "I broke". Without this the unit reads as
+# failed and gets ignored -- which is how a working detector looked dead for a day.
+SuccessExitStatus=1
 Type=oneshot
 ExecStart=/usr/local/bin/backup-stall-watchdog
 Nice=10
+

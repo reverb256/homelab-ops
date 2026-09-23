@@ -43,7 +43,9 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 RETAIN=14
 # Stage on the SSD tier, never /tmp: /tmp is the LUKS root and the staged copy
 # is a few GB. /data/fast has ~464G free and is otherwise idle.
-STAGE_BASE=/data/fast/backup-stage
+STAGE_BASE=/var/lib/media-config-backup/stage   # NOT /data/fast: that tier gets unmounted for
+                                                 # maintenance, and on 2026-09-23 one did -- mid-run,
+                                                 # taking the staging tree with it
 
 command -v aws >/dev/null 2>&1 || { echo "aws cli missing" >&2; exit 2; }
 command -v sqlite3 >/dev/null 2>&1 || { echo "sqlite3 missing (needed for consistent db snapshots)" >&2; exit 2; }
@@ -114,6 +116,7 @@ while IFS= read -r -d '' db; do
     echo "WARN: could not snapshot $rel (left out)" >&2
   fi
 done < <(find "$SRC" \( -name '*.db' -o -name '*.sqlite' \) -type f -print0)
+find "$STAGE" \( -type s -o -type p \) -delete 2>/dev/null
 echo "  snapshotted $n_db database(s); staged $(find "$STAGE" -type f | wc -l) file(s)"
 
 sync_with_retry() {
@@ -136,12 +139,13 @@ sync_with_retry() {
   return 1
 }
 
-sync_with_retry "$STAGE" "s3://$BUCKET/current/"
-sync_with_retry "$STAGE" "s3://$BUCKET/snapshots/$STAMP/"
+sync_with_retry "$STAGE" "s3://$BUCKET/current/" || { echo "upload of current/ failed" >&2; exit 1; }
+sync_with_retry "$STAGE" "s3://$BUCKET/snapshots/$STAMP/" || { echo "upload of the snapshot copy failed" >&2; exit 1; }
 
 # Verify by OBJECT COUNT against the staged file count, never by exit code.
 staged=$(find "$STAGE" -type f | wc -l)
-n=$(aws --endpoint-url "$ENDPOINT" s3 ls "s3://$BUCKET/current/" --recursive | wc -l)
+listing=$(aws --endpoint-url "$ENDPOINT" s3 ls "s3://$BUCKET/current/" --recursive) || { echo "could not LIST current/ -- INCONCLUSIVE, not empty" >&2; exit 2; }
+n=$(printf '%s\n' "$listing" | grep -c . || true)
 [[ "$n" -gt 0 ]] || { echo "backup verified EMPTY — failing" >&2; exit 1; }
 echo "media-config backup ok: $n objects in current/ (staged $staged), snapshot $STAMP"
 
