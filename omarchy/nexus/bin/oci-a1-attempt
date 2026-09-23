@@ -12,14 +12,16 @@
 #   * The latch is set ONLY when an A1 is positively identified, or when a launch response
 #     containing an instance id is on disk.
 set -uo pipefail
-LOG=/var/log/oci-a1-attempt.log
+LOG=/home/j_kro/.oci/oci-a1-attempt.log
 STATE=/home/j_kro/.oci/.a1-claimed
 OCI=/home/j_kro/.oci/venv/bin/oci
+export OCI_CLI_CONFIG_FILE=/home/j_kro/.oci/config
+export HOME=/home/j_kro
 TEN=ocid1.tenancy.oc1..aaaaaaaaagggbwndtjlzcuywprjbit6d6ybwcu5qbt746bqelluju5szu6uq
 NAME=reverb256-edge-01
 export PYTHONWARNINGS=ignore SUPPRESS_LABEL_WARNING=True
 
-log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" | sudo tee -a "$LOG" >/dev/null; }
+log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >>"$LOG"; }
 alert() {
   curl -s -m 5 -X POST -H 'Content-Type: application/json' \
     -d "{\"source\":\"oci-a1-attempt\",\"severity\":\"info\",\"message\":\"$1\"}" \
