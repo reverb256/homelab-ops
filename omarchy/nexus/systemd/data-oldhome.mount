@@ -30,7 +30,7 @@ After=blockdev@dev-bcache0.target
 What=/dev/disk/by-uuid/08cbb21c-adb0-4e3c-928f-7b6d1fa2d236
 Where=/data/oldhome
 Type=btrfs
-Options=subvol=home,compress=zstd,ssd,discard=async,nofail,x-systemd.device-timeout=30s,ro
+Options=subvol=@home,compress=zstd,ssd,discard=async,nofail,x-systemd.device-timeout=30s,ro
 
 [Install]
 WantedBy=local-fs.target

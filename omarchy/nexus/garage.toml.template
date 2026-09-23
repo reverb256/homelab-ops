@@ -16,7 +16,7 @@ consistency_mode = "consistent"
 # Data lives on the 3.6TB bcache pool (/data/shared is a btrfs subvol of
 # /dev/bcache0), NOT on the root nvme. These paths carry ~274G of existing
 # object data from the NixOS era.
-metadata_dir = "/data/shared/garage/meta"
+metadata_dir = "/var/lib/garage/meta"
 data_dir = "/data/shared/garage/data"
 
 db_engine = "lmdb"
