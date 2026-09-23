@@ -334,6 +334,49 @@ dups=$(for n in fleet-verify oracle-idle-watch canary-watch rhc-canary-watch bac
 done)
 if [ -n "$dups" ]; then while read -r l; do emit FAIL D8b duplicate-timer "$HOSTNAME" "dup=$l" "ONE owner per state path (two copies drift; the stale one still reports green)"; done <<< "$dups"; else emit PASS D8b duplicate-timer "$HOSTNAME" "duplicates=none" "one owner per timer"; fi
 
+# D10 an encrypted root that silently never trims. The boot declaration and the live
+# mapping can disagree and nothing reports it: fstrim exits non-zero, no timer covers
+# it, and the host looks healthy while reclaiming nothing. Three unprivileged reads
+# name the state honestly, so a STAGED change is not mistaken for an active one and
+# an untrimmed root is not mistaken for a healthy one:
+#   /proc/cmdline                        what this boot declared
+#   /sys/block/<dm>/dm/name              which dm device is the root mapping
+#   /sys/block/<dm>/queue/discard_granularity   whether dm actually got discards
+probe_trim() {  # $1 = ssh prefix ("" = this host)
+  local pre="$1" out
+  out=$($pre bash -s 2>/dev/null <<'SNIP'
+d=""
+for x in /sys/block/dm-*; do [ "$(cat "$x/dm/name" 2>/dev/null)" = root ] && d="$x"; done
+[ -n "$d" ] || { echo "host=$(hostname) noluks"; exit 0; }
+gran=$(cat "$d/queue/discard_granularity" 2>/dev/null)
+decl=no; grep -q allow-discards /proc/cmdline && decl=yes
+echo "host=$(hostname) gran=$gran decl=$decl"
+SNIP
+)
+  local h="${out%% *}"; h="${h#host=}"
+  case "$out" in
+    *noluks*)        emit NOTE D10 no-encrypted-root "$h" "no dm target named root" "nothing to trim here" ;;
+    "")
+      emit NOTE D10 host-unreachable "$h" "ssh_failed=true" "reachable host (unreachable = trim state unknown, not healthy)" ;;
+    *gran=0' '*decl=yes*)
+      emit NOTE D10 trim-staged "$h/root" "${out#* }" "declared at boot, effective at the next reboot — staged, not active" ;;
+    *gran=0' '*decl=no*)
+      # zephyr is a workstation by standing rule: it is deliberately unmanaged, so an
+      # untrimmed root there is a known exception, not a silent failure. A FAIL we never
+      # intend to fix is worse than no check at all.
+      if [ "$h" = zephyr ]; then
+        emit NOTE D10 trim-workstation "$h/root" "${out#* }" "workstation by standing rule: unmanaged, stays untrimmed"
+      else
+        emit FAIL D10 trim-silent "$h/root" "${out#* }" "sudo scripts/apply-luks-trim.sh then reboot: an untrimmed LUKS root reclaims nothing and says nothing"
+      fi ;;
+    *gran=[1-9]*)
+      emit PASS D10 trim-active "$h/root" "${out#* }" "discards reach the encrypted root" ;;
+    *)               emit NOTE D10 probe-unparsed "$h/root" "out=$out" "unexpected probe output" ;;
+  esac
+}
+probe_trim ""
+if [ "$HOSTS" = 1 ]; then for h in forge sentry zephyr; do probe_trim "ssh -o ConnectTimeout=6 -o BatchMode=yes $h"; done; fi
+
 # ------------------------------------------- 5. ALERTING COVERAGE (D3 blind spot)
 # D3b: a producer with no metric and no rule cannot fail loudly. Checked by reading
 # the metric-name index out of vmsingle (read-only) and the rule set from vmalert.
@@ -401,8 +444,9 @@ echo
 echo "== summary =="
 FINDINGS=$(count "$F_FILE"); NOTES=$(count "$N_FILE"); GUARD_FAIL=$(count "$G_FILE")
 echo "findings: $FINDINGS   notes: $NOTES   guard-failures: $GUARD_FAIL"
-echo "sections covered: D1 never-succeeded, D2 stale-success, D3 stale-producer(+registry), D3b no-metrics/no-rule, D4 zero-payload-ingest, D5 schedule-missed/smoke-job, D6 suspended/hides-failures, D7 hermes-cron output+dispatch, D8 backup failed/stalled/duplicate, D9 committed-tree-vs-host drift (+leftover occupancy)"
+echo "sections covered: D1 never-succeeded, D2 stale-success, D3 stale-producer(+registry), D3b no-metrics/no-rule, D4 zero-payload-ingest, D5 schedule-missed/smoke-job, D6 suspended/hides-failures, D7 hermes-cron output+dispatch, D8 backup failed/stalled/duplicate, D9 committed-tree-vs-host drift (+leftover occupancy), D10 encrypted-root trim declared-vs-effective"
 if [ "$GUARD_FAIL" -gt 0 ]; then echo "[INCONCLUSIVE] a guard failed — empty input is never clean"; exit 2; fi
 if [ "$FINDINGS" -gt 0 ]; then echo "RESULT: $FINDINGS silent-failure instance(s) — each FAIL names the smallest next action."; exit 1; fi
 echo "RESULT: OK (clean on this sweep's coverage — extend the registry when a producer is added)"
 exit 0
+
