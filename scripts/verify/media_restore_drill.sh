@@ -57,17 +57,20 @@ MIN_PROWLARR_INDEXERS=20
 MIN_JELLYFIN_ITEMS=7000
 MIN_JELLYFIN_USERDATA=200
 FULL=0 ; [ "${1:-}" = '--full' ] && FULL=1
-TMO=${TMO:-45}                            # per-command timeout budget (s)
+TMO=${TMO:-90}                            # per-command timeout budget for small reads (s)
+# A transfer is long by nature, so it gets its own (still finite) budget. Wrapping a
+# full sync in the small-read timeout kills it mid-restore and looks like a failure.
+SYNC_TMO=${SYNC_TMO:-1800}
 
 WROTE=()
 cleanup() { for d in "${WROTE[@]}"; do rm -rf "$d"; done; }
 trap cleanup EXIT
 
 # ---- throttle + timeout wrappers: nothing here runs unthrottled ---------------
-thr() { ionice -c3 nice -n 19 "$@"; }
 to()  { timeout "$TMO" ionice -c3 nice -n 19 "$@"; }
 shr() { ionice -c3 nice -n 19 timeout "$TMO" "$@"; }
-q()   { printf '%s' "$1" | cut -c1-12; }
+# /dev/bcache0[/@media] -> /dev/bcache0 : compare DEVICES, not subvolumes
+dev() { printf '%s' "$1" | sed 's/\[.*//'; }
 
 # ---- host guard --------------------------------------------------------------
 HOST="$(hostname 2>/dev/null || echo unknown)"
@@ -77,8 +80,8 @@ if [ "$HOST" = zephyr ]; then
   exit 2
 fi
 printf 'media restore drill on %s at %s\n' "$HOST" "$(date -Is)"
-printf 'mode: %s   throttle: ionice -c3 nice -n 19   per-command timeout: %ss\n' \
-  "$([ "$FULL" = 1 ] && echo 'full metadata restore' || echo 'inventory + bounded rehearsal')" "$TMO"
+printf 'mode: %s   throttle: ionice -c3 nice -n 19   timeouts: %ss reads / %ss transfers\n' \
+  "$([ "$FULL" = 1 ] && echo 'full metadata restore' || echo 'inventory + bounded rehearsal')" "$TMO" "$SYNC_TMO"
 
 # ---- credentials: minted at run time, never echoed ---------------------------
 section 'GUARD: tools, mounts, credentials'
@@ -88,21 +91,23 @@ for c in aws sqlite3 findmnt du find timeout ionice; do
 done
 check $([ -z "$missing" ] && echo 0 || echo 1) "required tools present${missing:+ (missing:$missing)}"
 
-findmnt -no SOURCE,FSTYPE "$LIBRARY" >/dev/null 2>&1
+findmnt -no SOURCE,FSTYPE -T "$LIBRARY" >/dev/null 2>&1
 check $? "$LIBRARY is a mounted filesystem"
-lib_src="$(findmnt -no SOURCE "$LIBRARY" 2>/dev/null)"
-cfg_src="$(findmnt -no SOURCE "$LIVE" 2>/dev/null)"
+lib_src="$(findmnt -no SOURCE -T "$LIBRARY" 2>/dev/null)"
+cfg_src="$(findmnt -no SOURCE -T "$LIVE" 2>/dev/null)"
 note "library source: ${lib_src:-unknown}   metadata tier source: ${cfg_src:-unknown}"
-if [ -n "$lib_src" ] && [ "$lib_src" = "$cfg_src" ]; then
+if [ -z "$lib_src" ] || [ -z "$cfg_src" ]; then
+  inconclusive "could not resolve the device behind the library or the metadata tier"
+elif [ "$(dev "$lib_src")" = "$(dev "$cfg_src")" ]; then
   printf '  [FAIL] library and metadata live on the SAME device (%s) — one device loss takes both\n' "$lib_src"
   bump_rc 1
 else
   printf '  [PASS] metadata tier (%s) is a different device from the library (%s)\n' "${cfg_src:-unknown}" "${lib_src:-unknown}"
 fi
 # The backup's own durability depends on where garage keeps the blobs.
-garage_dev="$(findmnt -no SOURCE -T /data/shared/garage/data 2>/dev/null)"
-note "garage blob store is on ${garage_dev:-unknown}"
-if [ -n "$garage_dev" ] && [ "$garage_dev" = "$lib_src" ]; then
+garage_dev="$(findmnt -no SOURCE -T /data/shared 2>/dev/null || sudo -n findmnt -no SOURCE -T /data/shared 2>/dev/null)"
+note "garage blob store (data_dir=/data/shared/garage/data) is on ${garage_dev:-unknown}"
+if [ -n "$garage_dev" ] && [ "$(dev "$garage_dev")" = "$(dev "$lib_src")" ]; then
   printf '  [FAIL] the metadata backup is stored on the SAME device as the library (%s) —\n' "$garage_dev"
   printf '         "off-device backup" is not true here: a device loss takes the backup too\n'
   bump_rc 1
@@ -119,7 +124,10 @@ if [ -z "$AWS_ACCESS_KEY_ID" ]; then
 else
   printf '  [PASS] minted a %s-character access key id from garage (value not printed)\n' "$(printf '%s' "$AWS_ACCESS_KEY_ID" | wc -c)"
 fi
-aws_() { aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"; }
+# small S3 reads (listings, single objects): bounded by TMO
+awss3()  { timeout "$TMO" ionice -c3 nice -n 19 aws --endpoint-url "$ENDPOINT" --region "$REGION" s3 "$@"; }
+# transfers: throttled, bounded by SYNC_TMO
+awss3x() { timeout "$SYNC_TMO" ionice -c3 nice -n 19 aws --endpoint-url "$ENDPOINT" --region "$REGION" s3 "$@"; }
 
 # ---- scratch: one directory, deleted and proven deleted ----------------------
 SCRATCH="${DRILL_SCRATCH:-$(mktemp -d /data/nvme1/.media-restore-drill.XXXXXX 2>/dev/null || mktemp -d /tmp/.media-restore-drill.XXXXXX)}"
@@ -128,7 +136,7 @@ note "scratch (deleted on exit, and proven deleted): $SCRATCH"
 
 # ---- 1. what is protected: metadata ----------------------------------------
 section 'PROTECTION INVENTORY: metadata (the *arr + Jellyfin config tier)'
-listing="$(to aws_ s3 ls "s3://$BUCKET/$PREFIX" --recursive 2>/dev/null || true)"
+listing="$(awss3 ls "s3://$BUCKET/$PREFIX" --recursive 2>/dev/null || true)"
 if assert_nonempty 'bucket listing' "$listing"; then
   n_objects="$(printf '%s\n' "$listing" | grep -c .)"
   newest="$(printf '%s\n' "$listing" | awk '{print $1" "$2}' | sort | tail -1)"
@@ -144,6 +152,23 @@ if assert_nonempty 'bucket listing' "$listing"; then
   done
   db_objs="$(printf '%s\n' "$listing" | grep -E '/[^/]*\.db$' | wc -l)"
   check $([ "$db_objs" -gt 5 ] && echo 0 || echo 1) "database objects present in the backup ($db_objs)"
+  # *.db-wal / *.db-shm in this bucket are leftovers from EARLIER runs: the
+  # uploader snapshots live databases with sqlite3 .backup and screens the
+  # sidecars out of the staged copy, and nothing ever deletes an old object.
+  # A verbatim restore therefore lands a WAL that belongs to a different
+  # generation of the database, and SQLite then reports the restored database
+  # as malformed. Measured both ways on 2026-09-23 — see
+  # docs/MEDIA-RESTORE-REHEARSAL.md. A restore MUST drop these sidecars.
+  hazard="$(printf '%s\n' "$listing" | grep -cE '/[^/]*\.db-(wal|shm)$' || true)"
+  if [ "${hazard:-0}" -gt 0 ]; then
+    printf '  [FAIL] %s *.db-wal / *.db-shm object(s) sit in the bucket beside the databases\n' "$hazard"
+    printf '         (leftovers from earlier runs). A verbatim restore must DROP every\n'
+    printf '         *.db-wal / *.db-shm beside a *.db, or sqlite reports the restored\n'
+    printf '         database as malformed. This is the one procedure step a restore cannot skip.\n'
+    bump_rc 1
+  else
+    printf '  [PASS] no stale *.db-wal / *.db-shm sidecars in the bucket\n'
+  fi
   # A backup job that has never verified itself is not a working backup.
   okline="$(sudo -n journalctl -u media-config-backup --no-pager 2>/dev/null | grep -c 'backup ok' || true)"
   if [ "${okline:-0}" -gt 0 ]; then
@@ -153,7 +178,7 @@ if assert_nonempty 'bucket listing' "$listing"; then
     printf '         the objects exist but the job has never passed its own verify+prune stage\n'
     bump_rc 1
   fi
-  snaps="$(to aws_ s3 ls "s3://$BUCKET/snapshots/" 2>/dev/null | grep -c . || true)"
+  snaps="$(awss3 ls "s3://$BUCKET/snapshots/" 2>/dev/null | grep -c . || true)"
   if [ "${snaps:-0}" -gt 0 ]; then
     printf '  [PASS] %s dated snapshot(s) available for point-in-time rollback\n' "$snaps"
   else
@@ -206,7 +231,9 @@ RESTORE="$SCRATCH/restore"; mkdir -p "$RESTORE"
 # hazard) and then show what a correct restore must do.
 if [ "$FULL" = 1 ]; then
   note 'full rehearsal: syncing every object (this is the real restore workload)'
-  src="s3://$BUCKET/$PREFIX/"
+  # $PREFIX already ends with a slash; appending another yields a prefix that
+  # matches NOTHING and aws exits 0 having copied zero files.
+  src="s3://$BUCKET/${PREFIX%/}"
 else
   note 'bounded rehearsal: databases + config only (use --full for all 22.8k objects)'
   src="s3://$BUCKET/$PREFIX"
@@ -219,10 +246,10 @@ else
 fi
 t0=$(date +%s)
 if [ "$FULL" = 1 ]; then
-  thr aws_ s3 sync "$src" "$RESTORE/" --only-show-errors --no-progress \
+  awss3x sync "$src" "$RESTORE/" --only-show-errors --no-progress \
       --cli-connect-timeout 60 --cli-read-timeout 300
 else
-  thr aws_ s3 sync "$src" "$RESTORE/" "${EXCL[@]}" --only-show-errors --no-progress \
+  awss3x sync "$src" "$RESTORE/" "${EXCL[@]}" --only-show-errors --no-progress \
       --cli-connect-timeout 60 --cli-read-timeout 300
 fi
 rc_sync=$?
@@ -232,8 +259,11 @@ bytes="$(du -sb "$RESTORE" 2>/dev/null | cut -f1)"
 check $([ "$rc_sync" -eq 0 ] && echo 0 || echo 1) "s3 sync of the metadata backup returned 0 (rc=$rc_sync)"
 if assert_nonempty 'restored files' "$n_files" && [ "${n_files:-0}" -gt 0 ]; then
   note "restored $n_files file(s) / ${bytes:-0} bytes in ${elapsed}s ($(awk -v b="$bytes" -v s="$elapsed" 'BEGIN{if(s>0)printf "%.2f MB/s", b/1048576/s; else print "n/a"}'))"
-  if [ "$FULL" = 1 ]; then
-    note "measured full-metadata restore: ${elapsed}s for 22,792 objects — this is the number to plan a real recovery around"
+  if [ "$FULL" = 1 ] && [ "$elapsed" -lt 60 ]; then
+    note "the full set was ALREADY present in scratch: ${elapsed}s is a no-op re-verify, not a download"
+    note "for the real number, run --full against an empty scratch (measured 2026-09-23: 510s for 22,792 objects / 4.96 GiB)"
+  elif [ "$FULL" = 1 ]; then
+    note "measured full-metadata restore: ${elapsed}s for ${n_files} objects — plan a real recovery around this"
   else
     note "bounded rehearsal only; extrapolate with --full, do not scale this number by hand"
   fi
@@ -348,9 +378,7 @@ note 'on the same device as the library (see the GUARD section above).'
 section 'SCRATCH CLEANUP'
 for d in "${WROTE[@]}"; do rm -rf "$d"; done
 WROTE=()
-gone=0
-for d in "${SCRATCH}"; do [ -e "$d" ] || gone=1; done
-check "$gone" "scratch directory is deleted ($SCRATCH)"
+check $([ -e "$SCRATCH" ] && echo 1 || echo 0) "scratch directory is deleted ($SCRATCH)"
 left="$(find /data/nvme1 -maxdepth 1 -name '.media-restore-drill.*' 2>/dev/null | wc -l)"
 check $([ "${left:-1}" -eq 0 ] && echo 0 || echo 1) "no drill scratch left behind under /data/nvme1 ($left found)"
 
