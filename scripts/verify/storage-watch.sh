@@ -1,50 +1,61 @@
 #!/usr/bin/env bash
-# storage-watch — anomaly-only watchdog for the nexus storage operation.
+# storage-watch v2 — anomaly-only watchdog for the nexus storage operation.
 # Contract: SILENT when healthy (empty stdout => nothing is delivered).
-#           Prints + exits non-zero ONLY when something needs a human.
-# Read-only. Safe to run on a clock: no traversal of /data/media, no writes, all calls bounded.
+# Asserts on ARTIFACTS THAT PROVE THE CLAIM, never on a guessed marker:
+#   completion  = free space on /data/media grew materially (deletion happened)
+#   stall       = nothing in the prune dir has moved AND free space is unchanged
+# v1 was wrong: it treated `verify.done` (the *verification* pass) as "prune complete"
+# and announced success with 452G free = the unchanged baseline, i.e. nothing reclaimed.
 set +e
-D=/dev/mapper/root
-LEDGER=/home/j_kro/prune-20260923/verify.jsonl
+STATE=/home/j_kro/.cache/storage-watch.state
+PRUNEDIR=/home/j_kro/prune-20260923
+mkdir -p /home/j_kro/.cache
 ALERTS=()
 
-# 1. Free space on the media volume: the prune's own stop condition.
-media_avail_g=$(df -BG --output=avail /data/media 2>/dev/null | tail -1 | tr -dc '0-9')
-if [ -n "$media_avail_g" ] && [ "$media_avail_g" -lt 100 ]; then
-  ALERTS+=("media volume under 100G free (${media_avail_g}G) - prune stop condition")
+# --- read state (baseline free space, whether completion was already reported) ---
+base=""; reported=""
+[ -f "$STATE" ] && { base=$(awk -F= '/^base=/{print $2}' "$STATE"); reported=$(awk -F= '/^reported=/{print $2}' "$STATE"); }
+free=$(df -BG --output=avail /data/media 2>/dev/null | tail -1 | tr -dc '0-9')
+[ -z "$base" ] && base=$free          # first run: adopt current free as the baseline
+[ -z "$reported" ] && reported=no
+
+# 1. Free space below the prune's own stop condition.
+if [ -n "$free" ] && [ "$free" -lt 100 ]; then
+  ALERTS+=("media volume under 100G free (${free}G) - prune stop condition reached")
 fi
 
-# 2. Is the cancelled migration running again?
+# 2. The cancelled migration must not be running.
 if pgrep -f "nvme1-migrat[e]" >/dev/null 2>&1; then
-  ALERTS+=("CANCELLED migration relaunched ($(pgrep -fc 'nvme1-migrat[e]') rsync processes) - owner decision is cancel")
+  ALERTS+=("CANCELLED migration relaunched ($(pgrep -fc 'nvme1-migrat[e]') rsync) - owner decision is cancel")
 fi
 
-# 3. Has the prune stalled, and is it finished?
-if [ -f "$LEDGER" ]; then
-  age_min=$(( ( $(date +%s) - $(stat -c %Y "$LEDGER") ) / 60 ))
-  rows=$(wc -l < "$LEDGER" 2>/dev/null)
-  done_flag=$(ls /home/j_kro/prune-20260923/*.done 2>/dev/null | head -1)
-  if [ -z "$done_flag" ] && [ "$age_min" -gt 45 ]; then
-    ALERTS+=("prune ledger idle ${age_min} min at ${rows} rows and no .done marker - stalled or dead")
-  fi
-  # Report the final number once, when it completes (one-shot style: fires only on the transition).
-  if [ -n "$done_flag" ] && [ ! -f /home/j_kro/.cache/storage-watch-reported ]; then
-    ALERTS+=("prune COMPLETE: $(df -h /data/media | tail -1 | awk '{print $4}') free on /data/media now (rows=${rows})")
-    mkdir -p /home/j_kro/.cache && touch /home/j_kro/.cache/storage-watch-reported
+# 3. Completion = free space actually grew (>50G above baseline). Report ONCE.
+grew=$(( free - base ))
+if [ "$grew" -gt 50 ] && [ "$reported" != "yes" ]; then
+  ALERTS+=("prune COMPLETE: /data/media free is ${free}G, +${grew}G reclaimed (baseline ${base}G)")
+  reported=yes
+fi
+
+# 4. Stall = no file in the prune dir has moved for >45 min AND space has not grown.
+if [ -d "$PRUNEDIR" ]; then
+  newest=$(find "$PRUNEDIR" -maxdepth 1 -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1 | cut -d. -f1)
+  now=$(date +%s)
+  if [ -n "$newest" ]; then
+    idle_min=$(( (now - newest) / 60 ))
+    if [ "$idle_min" -gt 45 ] && [ "$grew" -le 50 ]; then
+      ALERTS+=("prune idle ${idle_min} min at ${free}G free (baseline ${base}G, +${grew}G) - stalled or dead")
+    fi
   fi
 fi
 
-# 4. bcache state changed unexpectedly (a cache device appeared / the volume left writethrough).
+# 5. bcache state must stay 'no cache' until the P3 maintenance window.
 st=$(cat /sys/block/bcache0/bcache/state 2>/dev/null)
-mode=$(cat /sys/block/bcache0/bcache/cache_mode 2>/dev/null | tr -d '[]')
-if [ "$st" != "no cache" ]; then
-  ALERTS+=("bcache0 state changed: '${st}' mode='${mode}' - expected 'no cache' until P3")
-fi
+[ -n "$st" ] && [ "$st" != "no cache" ] && ALERTS+=("bcache0 state changed to '${st}' - expected 'no cache' until P3")
 
-# 5. The worn Kingston must stay out of service.
-if findmnt -rn -S /dev/nvme1n1 >/dev/null 2>&1; then
-  ALERTS+=("worn Kingston (96% wear) is mounted again - it is retired")
-fi
+# 6. The 96%-worn Kingston must stay out of service.
+findmnt -rn -S /dev/nvme1n1 >/dev/null 2>&1 && ALERTS+=("worn Kingston is mounted again - it is retired")
+
+printf 'base=%s\nreported=%s\n' "$base" "$reported" > "$STATE"
 
 if [ ${#ALERTS[@]} -gt 0 ]; then
   echo "NEXUS STORAGE ALERT ($(date -u +%FT%TZ))"
