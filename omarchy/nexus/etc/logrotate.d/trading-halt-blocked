@@ -1,0 +1,13 @@
+# The trading halt counterfactual ledger is append-only JSONL and grows without bound
+# (16 MB and climbing by 2026-09-23). Rotated by size, copytruncate, because the writer
+# opens it per-event rather than holding it open - verified with fuser.
+/home/j_kro/Work/trading/data/halt_blocked.jsonl {
+    size 10M
+    rotate 3
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su j_kro j_kro
+}
