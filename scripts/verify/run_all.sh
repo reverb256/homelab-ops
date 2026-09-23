@@ -21,6 +21,7 @@ SCRIPTS=(
   rotation_exposure_check.py
   wallet_custody_inventory.sh
   autonomy_audit.sh
+  silent-failure-sweep.sh
 )
 
 echo "verify/run_all.sh  host=$(hostname)  $(date '+%Y-%m-%d %H:%M:%S%z')"
