@@ -367,7 +367,7 @@ SNIP
       if [ "$h" = zephyr ]; then
         emit NOTE D10 trim-workstation "$h/root" "${out#* }" "workstation by standing rule: unmanaged, stays untrimmed (a FAIL we will never fix trains people to ignore this sweep)"
       else
-        emit FAIL D10 trim-silent "$h/root" "${out#* }" "sudo scripts/apply-luks-trim.sh then reboot: an untrimmed LUKS root reclaims nothing and says nothing" ;;
+        emit FAIL D10 trim-silent "$h/root" "${out#* }" "sudo scripts/apply-luks-trim.sh then reboot: an untrimmed LUKS root reclaims nothing and says nothing"
       fi ;;
     *gran=[1-9]*)
                        emit PASS D10 trim-active "$h/root" "${out#* }" "discards reach the encrypted root" ;;
@@ -449,5 +449,6 @@ if [ "$GUARD_FAIL" -gt 0 ]; then echo "[INCONCLUSIVE] a guard failed — empty i
 if [ "$FINDINGS" -gt 0 ]; then echo "RESULT: $FINDINGS silent-failure instance(s) — each FAIL names the smallest next action."; exit 1; fi
 echo "RESULT: OK (clean on this sweep's coverage — extend the registry when a producer is added)"
 exit 0
+
 
 
