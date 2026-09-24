@@ -1,0 +1,11 @@
+[Unit]
+Description=k3s etcd data on the fast tier (EVO)
+RequiresMountsFor=/data/fast
+After=local-fs.target
+[Mount]
+What=/data/fast/k3s/etcd
+Where=/var/lib/rancher/k3s/server/db/etcd
+Type=none
+Options=bind
+[Install]
+WantedBy=local-fs.target
