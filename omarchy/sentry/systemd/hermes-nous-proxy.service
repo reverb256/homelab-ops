@@ -1,0 +1,15 @@
+[Unit]
+Description=Hermes OAuth proxy - nous OpenAI-compatible endpoint for pipelines
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/hermes proxy start --provider nous --port 8899
+WorkingDirectory=/home/j_kro/.hermes
+Environment="HERMES_HOME=/home/j_kro/.hermes"
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
