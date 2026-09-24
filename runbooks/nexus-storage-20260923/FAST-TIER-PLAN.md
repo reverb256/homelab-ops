@@ -234,3 +234,15 @@ Execution is bound by this plan's own gates: nodes Ready, etcd health recorded, 
 repo, rollback rehearsed on Phase 3 before Phase 2 is touched, and every copy throttled
 (`ionice -c3 nice -n 19`) - the plan's bare `rsync` is amended here, because this host has
 already been wedged once by unthrottled IO.
+
+## Phase 2 result (2026-09-23T16:28:47-05:00)
+
+Containerd (76 G) moved to the fast tier.
+
+| check | before | after |
+|---|---|---|
+| nodes Ready | 4 | 4 |
+| images | 134 | 134 |
+| dm-0 w_await | 24.7 ms | see iostat above |
+
+Rollback: stop k3s, stop the .mount, rmdir the mountpoint, mv containerd.pre-tier back, start k3s.
