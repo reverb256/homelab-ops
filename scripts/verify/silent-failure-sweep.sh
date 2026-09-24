@@ -59,12 +59,18 @@ echo "--------- | ---------------------- | -------------------------------------
 
 # ---------------------------------------------------------------- 0. GUARDS
 # An empty input must never read as health (the whole point of this class).
+# Guard intent is "kubectl+KUBECONFIG usable?", not a cronjob count. The stack is
+# event-driven now, so a low count is CORRECT: the old ">= 15" threshold reported
+# INCONCLUSIVE forever and silently suppressed every D-check below it (found
+# 2026-09-24, while adding D12). The negative control is preserved - a failed or
+# non-JSON API answer still trips this.
 CJ_JSON=$(kubectl get cronjobs -A -o json 2>/dev/null || true)
-CJ_N=$(printf '%s' "$CJ_JSON" | py -c 'import json,sys
-try: print(len(json.load(sys.stdin)["items"]))
-except Exception: print(0)' 2>/dev/null || echo 0)
-if [ "${CJ_N:-0}" -lt 15 ]; then
-  emit INCONCLUSIVE guard "kubectl get cronjobs -A" "cronjobs=${CJ_N:-0}" ">= 15 (kubectl+KUBECONFIG usable?)"
+CJ_OK=$(printf '%s' "$CJ_JSON" | py -c 'import json,sys
+try:
+    json.load(sys.stdin)["items"]; print("yes")
+except Exception: print("no")' 2>/dev/null || echo no)
+if [ "$CJ_OK" != "yes" ]; then
+  emit INCONCLUSIVE guard "kubectl get cronjobs -A" "no valid JSON with items" "API must answer"
 fi
 DATA_DIR=${TRADING_DATA:-/home/j_kro/Work/trading/data}
 FEED_N=$(ls -1 "$DATA_DIR"/*.jsonl 2>/dev/null | wc -l | tr -d ' ')
@@ -489,6 +495,26 @@ if $OC_REMOTE true 2>/dev/null; then
 else
   emit NOTE D11 opencode-free-only "zephyr unreachable" "cannot verify the CLI config"
 fi
+# D12: trading-halt visibility. A halted system is silent BY DESIGN - no fills, no
+# errors - so silence must never be the only signal. The 2026-09-22 halt
+# (consecutive losses 16 >= 16) ran unreported for 52 hours while every other
+# check stayed green. This reports the halt and its age on every sweep.
+HALT_LOG=/home/j_kro/Work/trading/data/halt_blocked.jsonl
+if [ -f "$HALT_LOG" ]; then
+  halt_info=$(tail -1 "$HALT_LOG" 2>/dev/null | py -c "
+import json,sys,time
+try:
+    d=json.loads(sys.stdin.read())
+    age=(time.time()-d.get('halt_ts',d.get('ts',0)))/3600
+    print(f\"halted {age:.1f}h sleeve={d.get('sleeve')} reason={d.get('reason')}\")
+except Exception as e:
+    print(f'unreadable: {e}')
+" 2>/dev/null)
+  echo "OK | D12 | trading-halt | $halt_info"
+else
+  echo "OK | D12 | trading-halt | no halt log"
+fi
+
 
 echo "== summary =="
 FINDINGS=$(count "$F_FILE"); NOTES=$(count "$N_FILE"); GUARD_FAIL=$(count "$G_FILE")
