@@ -450,10 +450,33 @@ fi
 
 # --------------------------------------------------------------- SUMMARY
 echo
+
+# D11 the free-model guard: the opencode CLI must be pinned to a *-free zen model and must not
+# have spent anything. A silent paid fallback is a charge that appears only in `opencode stats`,
+# so the absence of complaints proves nothing.
+OC_REMOTE="ssh -o ConnectTimeout=8 -o BatchMode=yes zephyr"
+OC_CLI='$HOME/.local/share/mise/installs/opencode/latest/opencode'
+if $OC_REMOTE true 2>/dev/null; then
+  D11_MODEL=$($OC_REMOTE "grep -o 'model.*' ~/.config/opencode/opencode.json 2>/dev/null | head -1" 2>/dev/null | tr -d '\r')
+  D11_COST=$($OC_REMOTE "bash -lc \"$OC_CLI stats 2>/dev/null | grep -a 'Total Cost'\"" 2>/dev/null | tr -d '\r')
+  case "$D11_MODEL" in
+    *-free*) emit OK D11 opencode-free-model "$D11_MODEL" "" ;;
+    "")      emit NOTE D11 opencode-free-model "not pinned" "pin opencode/<model>-free in ~/.config/opencode/opencode.json" ;;
+    *)       emit FINDING D11 opencode-free-model "$D11_MODEL" "default is not an explicitly free slug, so a paid model can be used silently" ;;
+  esac
+  case "$D11_COST" in
+    *0.00*) emit OK D11 opencode-spend "Total Cost zero" "" ;;
+    "")     emit NOTE D11 opencode-spend "unreadable" "run opencode stats on zephyr" ;;
+    *)      emit FINDING D11 opencode-spend "$D11_COST" "opencode has spent money. A paid fallback is configured or was used." ;;
+  esac
+else
+  emit NOTE D11 opencode-free-model "zephyr unreachable" "cannot verify the CLI pinned model"
+fi
+
 echo "== summary =="
 FINDINGS=$(count "$F_FILE"); NOTES=$(count "$N_FILE"); GUARD_FAIL=$(count "$G_FILE")
 echo "findings: $FINDINGS   notes: $NOTES   guard-failures: $GUARD_FAIL"
-echo "sections covered: D1 never-succeeded, D2 stale-success, D3 stale-producer(+registry), D3b no-metrics/no-rule, D4 ingest-ledger-readable(payload-unverifiable), D5 schedule-missed/smoke-job, D6 suspended/hides-failures, D7 hermes-cron output+dispatch, D8 backup failed/stalled/duplicate, D9 committed-tree-vs-host drift (+leftover occupancy), D10 encrypted-root trim declared-vs-effective"
+echo "sections covered: D1 never-succeeded, D2 stale-success, D3 stale-producer(+registry), D3b no-metrics/no-rule, D4 ingest-ledger-readable(payload-unverifiable), D5 schedule-missed/smoke-job, D6 suspended/hides-failures, D7 hermes-cron output+dispatch, D8 backup failed/stalled/duplicate, D9 committed-tree-vs-host drift (+leftover occupancy), D10 encrypted-root trim declared-vs-effective, D11 opencode free-model + spend"
 if [ "$GUARD_FAIL" -gt 0 ]; then echo "[INCONCLUSIVE] a guard failed — empty input is never clean"; exit 2; fi
 if [ "$FINDINGS" -gt 0 ]; then echo "RESULT: $FINDINGS silent-failure instance(s) — each FAIL names the smallest next action."; exit 1; fi
 echo "RESULT: OK (clean on this sweep's coverage — extend the registry when a producer is added)"
