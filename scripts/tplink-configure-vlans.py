@@ -440,7 +440,19 @@ async def main():
         print("\n🔍 Verifying current VLAN configuration...")
         print("(Checking each switch for enabled VLANs)\n")
         # TODO: Implement verification by checking existing VLANs
-        print("Verification mode not yet implemented.")
+        print("Verification mode is NOT implemented.")
+        print()
+        print("What it would take (nothing here is a live check yet):")
+        print("  - a read path on SwitchVLANConfigurator that logs in and scrapes the")
+        print("    live VLAN membership page per switch (today the class only writes)")
+        print("  - comparison against get_port_config(), which is a static desired-state")
+        print("    table (0=untagged, 1=tagged, 2=not-member), not a live read")
+        print("  - switch access: sw1-modem 10.1.1.10, sw2-tv 10.1.1.11,")
+        print("    sw3-upstairs 10.1.1.12, sw4-zephyr 10.1.1.13")
+        print("  - a dry run against one switch before trusting it")
+        print()
+        print("Until then this mode deliberately does nothing rather than reporting")
+        print("a green check it has not performed.")
         return
 
     if apply_config:
