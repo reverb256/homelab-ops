@@ -451,32 +451,49 @@ fi
 # --------------------------------------------------------------- SUMMARY
 echo
 
-# D11 the free-model guard: the opencode CLI must be pinned to a *-free zen model and must not
-# have spent anything. A silent paid fallback is a charge that appears only in `opencode stats`,
-# so the absence of complaints proves nothing.
+# D11 opencode policy: ONLY free zen models, driven through the CLI, and the free tier caps at
+# 100 requests/day (docs), so the quota must be visible before it bites. A paid model anywhere in
+# the config, or any spend, is a FINDING: the fleet's rule is free-only.
 OC_REMOTE="ssh -o ConnectTimeout=8 -o BatchMode=yes zephyr"
 OC_CLI='$HOME/.local/share/mise/installs/opencode/latest/opencode'
 if $OC_REMOTE true 2>/dev/null; then
-  D11_MODEL=$($OC_REMOTE "grep -o 'model.*' ~/.config/opencode/opencode.json 2>/dev/null | head -1" 2>/dev/null | tr -d '\r')
-  D11_COST=$($OC_REMOTE "bash -lc \"$OC_CLI stats 2>/dev/null | grep -a 'Total Cost'\"" 2>/dev/null | tr -d '\r')
-  case "$D11_MODEL" in
-    *-free*) emit OK D11 opencode-free-model "$D11_MODEL" "" ;;
-    "")      emit NOTE D11 opencode-free-model "not pinned" "pin opencode/<model>-free in ~/.config/opencode/opencode.json" ;;
-    *)       emit FINDING D11 opencode-free-model "$D11_MODEL" "default is not an explicitly free slug, so a paid model can be used silently" ;;
+  D11_MODELS=$($OC_REMOTE "grep -o '\"model\": *\"[^\"]*\"' ~/.config/opencode/opencode.json 2>/dev/null" | sed 's/.*: *"//; s/"$//' | tr '\n' ' ')
+  D11_BAD=""
+  for m in $D11_MODELS; do
+    case "$m" in
+      *-free|big-pickle) ;;
+      *) D11_BAD="$D11_BAD $m" ;;
+    esac
+  done
+  if [ -n "$D11_MODELS" ] && [ -z "$D11_BAD" ]; then
+    emit OK D11 opencode-free-only "$(echo $D11_MODELS | tr ' ' ',')" ""
+  elif [ -z "$D11_MODELS" ]; then
+    emit NOTE D11 opencode-free-only "no model pinned" "pin opencode/<model>-free in ~/.config/opencode/opencode.json"
+  else
+    emit FINDING D11 opencode-free-only "non-free:$D11_BAD" "fleet policy is free zen models only - remove the paid model"
+  fi
+  DAY_MS=$(( $(date -d "today 00:00" +%s) * 1000 ))
+  D11_TODAY=$($OC_REMOTE "bash -lc \"$OC_CLI db 'select count(*) from message where time_created >= $DAY_MS' --format tsv\"" 2>/dev/null | tr -d '\r' | tail -1)
+  case "$D11_TODAY" in
+    ""|*[!0-9]*) emit NOTE D11 opencode-quota "unreadable" "run $OC_CLI db on zephyr" ;;
+    100|[1-9][0-9][0-9]*) emit FINDING D11 opencode-quota "$D11_TODAY/100 today" "daily free-tier cap reached; big-pickle is the fallback" ;;
+    8[0-9]|9[0-9]) emit NOTE D11 opencode-quota "$D11_TODAY/100 today" "approaching the free-tier daily cap" ;;
+    *) emit OK D11 opencode-quota "$D11_TODAY/100 today" "" ;;
   esac
+  D11_COST=$($OC_REMOTE "bash -lc \"$OC_CLI stats 2>/dev/null | grep -a 'Total Cost'\"" 2>/dev/null | tr -d '\r')
   case "$D11_COST" in
     *0.00*) emit OK D11 opencode-spend "Total Cost zero" "" ;;
-    "")     emit NOTE D11 opencode-spend "unreadable" "run opencode stats on zephyr" ;;
-    *)      emit FINDING D11 opencode-spend "$D11_COST" "opencode has spent money. A paid fallback is configured or was used." ;;
+    "")     emit NOTE D11 opencode-spend "unreadable" "run $OC_CLI stats on zephyr" ;;
+    *)      emit FINDING D11 opencode-spend "$D11_COST" "opencode has spent money - fleet rule is free-only" ;;
   esac
 else
-  emit NOTE D11 opencode-free-model "zephyr unreachable" "cannot verify the CLI pinned model"
+  emit NOTE D11 opencode-free-only "zephyr unreachable" "cannot verify the CLI config"
 fi
 
 echo "== summary =="
 FINDINGS=$(count "$F_FILE"); NOTES=$(count "$N_FILE"); GUARD_FAIL=$(count "$G_FILE")
 echo "findings: $FINDINGS   notes: $NOTES   guard-failures: $GUARD_FAIL"
-echo "sections covered: D1 never-succeeded, D2 stale-success, D3 stale-producer(+registry), D3b no-metrics/no-rule, D4 ingest-ledger-readable(payload-unverifiable), D5 schedule-missed/smoke-job, D6 suspended/hides-failures, D7 hermes-cron output+dispatch, D8 backup failed/stalled/duplicate, D9 committed-tree-vs-host drift (+leftover occupancy), D10 encrypted-root trim declared-vs-effective, D11 opencode free-model + spend"
+echo "sections covered: D1 never-succeeded, D2 stale-success, D3 stale-producer(+registry), D3b no-metrics/no-rule, D4 ingest-ledger-readable(payload-unverifiable), D5 schedule-missed/smoke-job, D6 suspended/hides-failures, D7 hermes-cron output+dispatch, D8 backup failed/stalled/duplicate, D9 committed-tree-vs-host drift (+leftover occupancy), D10 encrypted-root trim declared-vs-effective, D11 opencode free-only + daily quota + spend"
 if [ "$GUARD_FAIL" -gt 0 ]; then echo "[INCONCLUSIVE] a guard failed — empty input is never clean"; exit 2; fi
 if [ "$FINDINGS" -gt 0 ]; then echo "RESULT: $FINDINGS silent-failure instance(s) — each FAIL names the smallest next action."; exit 1; fi
 echo "RESULT: OK (clean on this sweep's coverage — extend the registry when a producer is added)"
