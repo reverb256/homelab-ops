@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>media.lan</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, sans-serif;
+         background: #0d1117; color: #e6edf3; display: flex; flex-direction: column;
+         align-items: center; min-height: 100vh; padding: 3rem 1rem; }
+  h1 { font-weight: 600; letter-spacing: .02em; margin: 0 0 .4rem; }
+  p.sub { color: #8b949e; margin: 0 0 2rem; font-size: .95rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+          gap: .9rem; width: min(920px, 100%); }
+  a.card { display: block; padding: 1.05rem 1.2rem; border-radius: 10px;
+           background: #161b22; border: 1px solid #21262d; text-decoration: none;
+           color: #e6edf3; transition: border-color .15s, transform .15s; }
+  a.card:hover { border-color: #58a6ff; transform: translateY(-2px); }
+  a.card .name { font-weight: 600; font-size: 1.02rem; }
+  a.card .desc { color: #8b949e; font-size: .85rem; margin-top: .25rem; }
+  footer { margin-top: 2.5rem; color: #484f58; font-size: .8rem; }
+</style>
+</head>
+<body>
+  <h1>media.lan</h1>
+  <p class="sub">nexus &middot; k3s media stack &middot; TLS via Homelab Root CA</p>
+  <div class="grid">
+    <a class="card" href="https://jellyfin.lan/"><div class="name">Jellyfin</div><div class="desc">watch &middot; NVENC transcode</div></a>
+    <a class="card" href="https://sonarr.lan/"><div class="name">Sonarr</div><div class="desc">TV series</div></a>
+    <a class="card" href="https://radarr.lan/"><div class="name">Radarr</div><div class="desc">movies</div></a>
+    <a class="card" href="https://lidarr.lan/"><div class="name">Lidarr</div><div class="desc">music</div></a>
+    <a class="card" href="https://cleanuparr.lan/"><div class="name">Cleanuparr</div><div class="desc">download hygiene &middot; stalled torrents</div></a>
+    <a class="card" href="https://profilarr.lan/"><div class="name">Profilarr</div><div class="desc">TRaSH profiles &middot; custom formats</div></a>
+    <a class="card" href="https://prowlarr.lan/"><div class="name">Prowlarr</div><div class="desc">indexer manager</div></a>
+    <a class="card" href="https://jackett.lan/"><div class="name">Jackett</div><div class="desc">torrent indexers</div></a>
+    <a class="card" href="https://qb.lan/"><div class="name">qBittorrent</div><div class="desc">downloads</div></a>
+    <a class="card" href="https://bazarr.lan/"><div class="name">Bazarr</div><div class="desc">subtitles</div></a>
+    <a class="card" href="https://seerr.lan/"><div class="name">Seerr</div><div class="desc">media requests</div></a>
+    <a class="card" href="https://tubearchivist.lan/"><div class="name">TubeArchivist</div><div class="desc">YouTube archive</div></a>
+    <a class="card" href="https://pilotarr.lan/"><div class="name">Pilotarr</div><div class="desc">portal &middot; analytics</div></a>
+    <a class="card" href="https://gamarr.lan/"><div class="name">Gamarr</div><div class="desc">games &middot; ROMs &middot; PC + consoles</div></a>
+    <a class="card" href="https://romm.lan/"><div class="name">RomM</div><div class="desc">game library &middot; play in browser</div></a>
+    <a class="card" href="https://haven.lan/"><div class="name">Haven</div><div class="desc">private chat &middot; Haven</div></a>
+  </div>
+  <footer>Port fallback: 100.76.105.73:8989 sonarr &middot; :7878 radarr &middot; :9696 prowlarr &middot; :8082 qb &middot; :8096 jellyfin</footer>
+</body>
+</html>

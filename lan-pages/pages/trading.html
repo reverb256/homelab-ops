@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>trading.lan</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, sans-serif;
+         background: #0d1117; color: #e6edf3; min-height: 100vh; padding: 2.2rem 1.2rem; }
+  .wrap { width: min(1100px, 100%); margin: 0 auto; }
+  header { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.4rem; }
+  h1 { font-weight: 600; letter-spacing: .02em; margin: 0; font-size: 1.5rem; }
+  .pill { padding: .22rem .7rem; border-radius: 999px; font-size: .8rem; font-weight: 600;
+          border: 1px solid; }
+  .pill.ok { color: #7ee787; border-color: #2ea04366; background: #2ea0431a; }
+  .pill.warn { color: #ffa657; border-color: #d2992266; background: #d299221a; }
+  .pill.bad { color: #ff7b72; border-color: #f8514966; background: #f851491a; }
+  .muted { color: #8b949e; font-size: .85rem; }
+  .grid { display: grid; gap: .9rem; }
+  .stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: .9rem; }
+  .two { grid-template-columns: 1.15fr .85fr; margin-bottom: .9rem; }
+  @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+  .card { background: #161b22; border: 1px solid #21262d; border-radius: 10px; padding: 1rem 1.15rem; }
+  .card h2 { margin: 0 0 .6rem; font-size: .8rem; font-weight: 600; letter-spacing: .08em;
+             text-transform: uppercase; color: #8b949e; }
+  .stat .v { font-size: 1.45rem; font-weight: 650; font-variant-numeric: tabular-nums;
+             font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .stat .l { color: #8b949e; font-size: .78rem; margin-top: .15rem; }
+  .pos { color: #7ee787; } .neg { color: #ff7b72; }
+  table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+  th { text-align: left; color: #8b949e; font-weight: 500; font-size: .74rem;
+       text-transform: uppercase; letter-spacing: .06em; padding: .25rem .4rem; border-bottom: 1px solid #21262d; }
+  td { padding: .38rem .4rem; border-bottom: 1px solid #161b22; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .feed { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; }
+  .feed li { padding: .45rem .2rem; border-bottom: 1px solid #161b22; font-size: .86rem; line-height: 1.35; }
+  .feed li:last-child { border-bottom: none; }
+  .feed .t { color: #484f58; font-size: .74rem; margin-left: .5rem; white-space: nowrap; }
+  .k { color: #79c0ff; } .kv { color: #d2a8ff; }
+  a { color: #58a6ff; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  footer { margin-top: 1.6rem; color: #484f58; font-size: .8rem; display: flex;
+           gap: 1.2rem; flex-wrap: wrap; }
+  .row { display: flex; justify-content: space-between; padding: .28rem 0; font-size: .9rem; }
+  .row .lab { color: #8b949e; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>&#9670; trading.lan</h1>
+    <span id="pill" class="pill warn">connecting&hellip;</span>
+    <span class="muted" id="ago"></span>
+    <span class="muted" style="margin-left:auto">devnet paper book &middot; live SOL canary &middot; nexus</span>
+  </header>
+
+  <div class="grid stats">
+    <div class="card stat"><h2>Equity</h2><div class="v" id="s-equity">&mdash;</div><div class="l">USD total</div></div>
+    <div class="card stat"><h2>Cash</h2><div class="v" id="s-cash">&mdash;</div><div class="l">available</div></div>
+    <div class="card stat"><h2>Open</h2><div class="v" id="s-open">&mdash;</div><div class="l">positions</div></div>
+    <div class="card stat"><h2>Last cycle</h2><div class="v" id="s-cycle">&mdash;</div><div class="l">age</div></div>
+    <div class="card stat"><h2>KILL</h2><div class="v" id="s-kill">&mdash;</div><div class="l">switch</div></div>
+    <div class="card stat"><h2>Breaker</h2><div class="v" id="s-breaker">&mdash;</div><div class="l">halt state</div></div>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h2>Sleeves &middot; paper book</h2>
+      <table id="sleeves"><thead><tr>
+        <th>Sleeve</th><th>Equity</th><th>PnL</th><th>Closed</th><th>W/L</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h2>Live canary &middot; SOL</h2>
+      <div class="row"><span class="lab">Status</span><span id="c-status" class="pill warn">?</span></div>
+      <div class="row"><span class="lab">Wallet</span><span class="mono" id="c-wallet">&mdash;</span></div>
+      <div class="row"><span class="lab">Funded</span><span class="mono" id="c-funded">&mdash;</span></div>
+      <div class="row"><span class="lab">Sends</span><span class="mono" id="c-sends">&mdash;</span></div>
+      <div class="row"><span class="lab">Gates</span><span class="mono" id="c-gates">&mdash;</span></div>
+      <div class="row"><span class="lab">Next</span><span id="c-next" style="text-align:right;max-width:60%">&mdash;</span></div>
+      <div class="row"><span class="lab">Last</span><span id="c-last" style="text-align:right;max-width:60%">&mdash;</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>From the agent</h2>
+    <ul class="feed" id="feed"><li class="muted">loading&hellip;</li></ul>
+  </div>
+
+  <footer>
+    <a href="http://10.1.1.120:30300/">Grafana (metrics)</a>
+    <a href="/status.json">status.json</a>
+    <a href="/metrics">metrics</a>
+    <span id="fetched"></span>
+  </footer>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+let lastOk = null, lastFetch = 0;
+
+function fmtUsd(x) { return (x === null || x === undefined || isNaN(x)) ? "\u2014"
+  : "$" + Number(x).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+function ago(ts) {
+  if (!ts) return "\u2014";
+  const s = Math.max(0, Math.floor(Date.now() / 1000 - ts));
+  if (s < 60) return s + "s ago";
+  if (s < 3600) return Math.floor(s / 60) + "m ago";
+  if (s < 86400) return Math.floor(s / 3600) + "h ago";
+  return Math.floor(s / 86400) + "d ago";
+}
+function esc(s) { const d = document.createElement("div"); d.textContent = String(s ?? ""); return d.innerHTML; }
+
+async function refresh() {
+  try {
+    const [st, mx] = await Promise.all([
+      fetch("/status.json", {cache: "no-store"}).then(r => r.json()),
+      fetch("/metrics", {cache: "no-store"}).then(r => r.text()),
+    ]);
+    const m = {};
+    for (const line of mx.split("\n")) {
+      const mm = line.match(/^(\w+)\s+([0-9.eE+-]+)$/);
+      if (mm) m[mm[1]] = parseFloat(mm[2]);
+    }
+    lastOk = true; lastFetch = Date.now();
+
+    $("s-equity").textContent = fmtUsd(m["trading_equity_usd"]);
+    $("s-cash").textContent = fmtUsd(m["trading_cash_usd"]);
+    $("s-open").textContent = m["trading_open_positions"] ?? "\u2014";
+    $("s-cycle").textContent = m["trading_last_cycle_timestamp"] ? ago(m["trading_last_cycle_timestamp"]) : "\u2014";
+    const kill = m["trading_kill_switch"] > 0, brk = m["trading_breaker_tripped"] > 0;
+    $("s-kill").textContent = kill ? "ARMED" : "clear";
+    $("s-kill").className = "v " + (kill ? "neg" : "pos");
+    $("s-breaker").textContent = brk ? "TRIPPED" : "clear";
+    $("s-breaker").className = "v " + (brk ? "neg" : "pos");
+
+    const pill = $("pill");
+    if (kill) { pill.textContent = "KILL ARMED"; pill.className = "pill bad"; }
+    else if (brk) { pill.textContent = "BREAKER"; pill.className = "pill warn"; }
+    else { pill.textContent = "OK"; pill.className = "pill ok"; }
+
+    const tbody = $("sleeves").querySelector("tbody");
+    tbody.innerHTML = "";
+    for (const s of (st.sleeves || [])) {
+      const pnl = Number(s.pnl_pct);
+      tbody.insertAdjacentHTML("beforeend",
+        `<tr><td><b>${esc(s.name)}</b> <span class="muted">${esc(s.label || "")}</span></td>` +
+        `<td>${fmtUsd(s.equity)}</td>` +
+        `<td class="${pnl >= 0 ? "pos" : "neg"}">${pnl >= 0 ? "+" : ""}${pnl.toFixed(1)}%</td>` +
+        `<td>${esc(s.closed_positions ?? "\u2014")}</td>` +
+        `<td>${esc(s.wins ?? 0)}/${esc(s.losses ?? 0)}</td></tr>`);
+    }
+
+    const c = st.canary || {};
+    const armed = !!c.armed && !!c.enabled;
+    $("c-status").textContent = armed ? "ARMED \u00b7 LIVE" : (c.enabled ? "enabled" : "DISARMED");
+    $("c-status").className = "pill " + (armed ? "ok" : "warn");
+    $("c-wallet").textContent = c.wallet ? c.wallet.slice(0, 6) + "\u2026" + c.wallet.slice(-4) : "\u2014";
+    $("c-funded").textContent = c.funded_usd ? "$" + Number(c.funded_usd).toFixed(2) : "\u2014";
+    $("c-sends").textContent = c.sends_total ?? 0;
+    const g = c.gates || {};
+    $("c-gates").textContent = (g.met ?? "?") + "/" + (g.total ?? "?") +
+      ((g.pending || []).length ? " (pending " + g.pending.join(", ") + ")" : "");
+    $("c-next").textContent = c.next || "\u2014";
+    $("c-last").textContent = c.last && c.last.text ? c.last.text : (c.last ? JSON.stringify(c.last).slice(0, 60) : "\u2014");
+
+    const feed = $("feed");
+    const msgs = (st.agent && st.agent.messages) || [];
+    feed.innerHTML = msgs.slice(-8).reverse().map(mm =>
+      `<li>${esc(mm.text)}<span class="t">${ago(mm.ts)}</span></li>`).join("") ||
+      '<li class="muted">(no messages)</li>';
+  } catch (e) {
+    lastOk = false;
+    $("pill").textContent = "UNREACHABLE";
+    $("pill").className = "pill bad";
+  }
+}
+
+setInterval(() => {
+  if (lastOk === null) return;
+  $("ago").textContent = lastFetch ? "updated " + Math.floor((Date.now() - lastFetch) / 1000) + "s ago" : "";
+  if (lastFetch) $("fetched").textContent = "fetched " + new Date(lastFetch).toLocaleTimeString();
+}, 1000);
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>
