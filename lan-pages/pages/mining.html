@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mining.lan</title>
+<style>
+  :root { color-scheme: dark; --bg:#0d1117; --panel:#161b22; --line:#30363d; --fg:#e6edf3; --dim:#8b949e;
+          --ok:#3fb950; --pause:#58a6ff; --bad:#f85149; --warn:#d29922; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  header { padding:22px 24px 6px; }
+  h1 { font-size:1.15rem; margin:0; }
+  h1 .g { color:var(--dim); font-weight:400; }
+  .sub { color:var(--dim); font-size:.8rem; margin-top:2px; }
+  .cards { display:flex; flex-wrap:wrap; gap:12px; padding:14px 24px 4px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:10px 16px; min-width:132px; }
+  .card .k { color:var(--dim); font-size:.68rem; text-transform:uppercase; letter-spacing:.08em; }
+  .card .v { font-size:1.28rem; font-weight:600; }
+  .card .v small { font-size:.75rem; color:var(--dim); font-weight:400; }
+  .wrap { padding:14px 24px 24px; }
+  table { width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  th, td { padding:9px 12px; text-align:left; border-bottom:1px solid #21262d; }
+  th { color:var(--dim); font-weight:400; font-size:.68rem; text-transform:uppercase; letter-spacing:.08em; }
+  tr:last-child td { border-bottom:none; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .state { font-weight:700; }
+  .mining { color:var(--ok); } .paused { color:var(--pause); } .offline { color:var(--bad); } .unknown { color:var(--warn); }
+  .dim { color:var(--dim); }
+  footer { padding:0 24px 30px; color:var(--dim); font-size:.78rem; }
+  a { color:var(--pause); text-decoration:none; }
+  #err { color:var(--bad); padding:6px 24px 0; min-height:1.2em; font-size:.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>mining.lan <span class="g">&mdash; GPU fleet</span></h1>
+  <div class="sub" id="stamp">loading&hellip;</div>
+</header>
+<div id="err"></div>
+<div class="cards" id="cards"></div>
+<div class="wrap">
+  <table>
+    <thead><tr>
+      <th>Host</th><th>GPU</th><th>State</th>
+      <th class="num">Hashrate</th><th class="num">Power</th><th class="num">Temp</th><th class="num">Fan</th>
+      <th class="num">Shares/h</th><th class="num">Last share</th><th class="num">Pool</th>
+    </tr></thead>
+    <tbody id="rows"><tr><td colspan="10" class="dim">loading&hellip;</td></tr></tbody>
+  </table>
+</div>
+<footer>
+  Live from VictoriaMetrics (<code>miner_*</code>, 30&nbsp;s refresh) &middot;
+  <b>paused</b> = deliberately scaled to zero (user intent) &middot;
+  <b>offline</b> = needs attention &middot;
+  control: Omarchy bar panel (io.github.jkro.miners) on zephyr &amp; nexus &middot;
+  krash2/krash3 (Windows) tracked in the bar panel only &middot;
+  <a href="https://dashboard.lan">dashboard.lan</a> &middot; <a href="https://media.lan">media.lan</a>
+</footer>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const SERIES = (r) => (r && r.data && r.data.result) || [];
+async function query(expr) {
+  const resp = await fetch("vm/api/v1/query?query=" + encodeURIComponent(expr), { cache: "no-store" });
+  if (!resp.ok) throw new Error("vm " + resp.status);
+  return resp.json();
+}
+function ths(hs) { const v = Number(hs || 0) / 1e12; return v >= 100 ? v.toFixed(0) : v.toFixed(2); }
+function watts(w) { return Math.round(Number(w || 0)); }
+function ago(s) {
+  if (s == null || isNaN(s)) return "\u2014";
+  const v = Math.round(Number(s));
+  if (v < 90) return v + "s";
+  if (v < 5400) return Math.round(v / 60) + "m";
+  return (v / 3600).toFixed(1) + "h";
+}
+function stateOf(r) { return r.paused ? "paused" : (r.up === 1 ? "mining" : (r.up === 0 ? "offline" : "unknown")); }
+async function refresh() {
+  try {
+    const [up, hs, pw, tp, fan, shr, last, pool, paused] = await Promise.all([
+      query("miner_up"), query("miner_hashrate_hs"), query("miner_power_watts"),
+      query("miner_gpu_temperature_celsius"), query("miner_gpu_fan_percent"),
+      query("miner_share_rate_per_hour"), query("miner_last_share_age_seconds"),
+      query("miner_pool_connected"), query("miner_paused")
+    ]);
+    const rows = new Map();
+    const row = (m) => { const k = m.instance || "?"; if (!rows.has(k)) rows.set(k, { key: k, host: m.host || "", model: m.model || "" }); return rows.get(k); };
+    const put = (resp, field, conv) => SERIES(resp).forEach((s) => { row(s.metric)[field] = conv ? conv(s.value[1]) : s.value[1]; });
+    put(up, "up", Number); put(hs, "hs", Number); put(pw, "pw", Number);
+    put(tp, "tp", Number); put(fan, "fan", Number); put(shr, "shr", Number);
+    put(last, "last", Number); put(pool, "pool", Number);
+    SERIES(paused).forEach((s) => { row(s.metric).paused = true; });
+
+    const list = [...rows.values()].sort((a, b) => a.key.localeCompare(b.key));
+    let totalHs = 0, totalW = 0, mining = 0, pausedN = 0, offlineN = 0, totalShr = 0;
+    const body = list.map((r) => {
+      const st = stateOf(r);
+      if (st === "mining") { mining++; totalHs += r.hs || 0; totalW += r.pw || 0; }
+      if (st === "paused") pausedN++;
+      if (st === "offline") offlineN++;
+      totalShr += Number(r.shr || 0);
+      const d = st === "mining";
+      return "<tr>" +
+        "<td>" + r.host + "</td><td>" + r.model + "</td>" +
+        '<td class="state ' + st + '">' + st.toUpperCase() + "</td>" +
+        '<td class="num">' + (d ? ths(r.hs) + ' <span class="dim">TH/s</span>' : "\u2014") + "</td>" +
+        '<td class="num">' + (d ? watts(r.pw) + ' <span class="dim">W</span>' : "\u2014") + "</td>" +
+        '<td class="num">' + (d && r.tp != null ? Math.round(r.tp) + "\u00b0C" : "\u2014") + "</td>" +
+        '<td class="num">' + (d && r.fan != null ? Math.round(r.fan) + "%" : "\u2014") + "</td>" +
+        '<td class="num">' + (d ? Number(r.shr || 0).toFixed(1) : "\u2014") + "</td>" +
+        '<td class="num">' + (d ? ago(r.last) : "\u2014") + "</td>" +
+        '<td class="num ' + (r.pool === 1 ? "" : "offline") + '">' + (r.pool === 1 ? "UP" : (r.pool === 0 ? "DOWN" : "\u2014")) + "</td>" +
+      "</tr>";
+    }).join("");
+    $("rows").innerHTML = body || '<tr><td colspan="10" class="dim">no miner series in VictoriaMetrics</td></tr>';
+    $("cards").innerHTML = [
+      ["Fleet hashrate", ths(totalHs) + ' <small>TH/s</small>'],
+      ["Fleet power", watts(totalW) + ' <small>W</small>'],
+      ["Mining", mining + ' <small>of ' + list.length + "</small>"],
+      ["Paused", pausedN],
+      ["Needs attention", offlineN],
+      ["Shares/h (fleet)", totalShr.toFixed(1)]
+    ].map((p) => '<div class="card"><div class="k">' + p[0] + '</div><div class="v">' + p[1] + "</div></div>").join("");
+    $("stamp").textContent = "updated " + new Date().toLocaleTimeString() + " \u00b7 " + list.length + " miners";
+    $("err").textContent = "";
+  } catch (e) {
+    $("err").textContent = "refresh failed: " + e.message;
+  }
+}
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>
