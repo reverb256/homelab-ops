@@ -6,7 +6,7 @@ for H in "" "100.105.246.35"; do
   if [ -z "$H" ]; then
     diff -q "$SRC" /etc/unbound/local-dns.conf >/dev/null 2>&1 || { echo "DRIFT on nexus"; ok=0; }
   else
-    ssh -o ConnectTimeout=8 "$H" "cat /etc/unbound/local-dns.conf" 2>/dev/null | diff -q "$SRC" - >/dev/null 2>&1 \
+    ssh -o ConnectTimeout=8 -o BatchMode=yes -i ~/.ssh/id_ed25519_fleet "$H" "cat /etc/unbound/local-dns.conf" 2>/dev/null | diff -q "$SRC" - >/dev/null 2>&1 \
       || { echo "DRIFT on $H"; ok=0; }
   fi
 done
