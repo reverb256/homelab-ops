@@ -28,6 +28,7 @@ Garage — that is a one-way door, documented in the runbook.
 | Hermes profiles (sentry/nexus/zephyr) | per-profile `.env`, 0600, ~12 files, ~2 KB each | none — no drift detection |
 | Hermes **A2A peer tokens** (nexus, zephyr) | store `secrets/infra/hermes-a2a-peer-tokens.yaml` → rendered into `~/.hermes/.env A2A_PEER_TOKENS` **and** `~/.hermes/config.yaml a2a_agents.<peer>.auth.token` by `scripts/a2a-peer-token-rotate.py` | `scripts/a2a-peer-token-rotate.py check` — store vs live, fingerprints only, exit 0/1/2 |
 | Cloudflare (tokens, tunnels) | sops store + API | `GET /user/tokens/verify` |
+| j_kro's user-facing credentials | **Bitwarden** — j_kro sets/rotates them imperatively in the app (source of truth); machine resolution via secretspec `bw://` or `~/.local/bin/bw-run` (unlocked `bw` CLI on zephyr) | `bw-run --status`; `bw-run bw list items --search <q>` |
 
 ## Rules
 
@@ -55,6 +56,10 @@ Garage — that is a one-way door, documented in the runbook.
    update sops -> render -> restart the consumer -> verify by use.
 5. **A secret that exists only hand-placed is not controlled.** If it is not in the store, it cannot
    be rotated deliberately, restored on a rebuilt host, or reviewed.
+6. **User-facing credentials live in j_kro's Bitwarden (2026-09-25).** He sets and rotates them
+   imperatively in the app; agents resolve them only via the secretspec `bw://` provider or the
+   `bw-run` wrapper (unlocked `bw` CLI session on zephyr). Do not mirror them into the sops store
+   unless a credential becomes an infra/machine secret.
 
 ## Known gaps
 
