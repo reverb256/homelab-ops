@@ -29,6 +29,7 @@ Garage — that is a one-way door, documented in the runbook.
 | Hermes **A2A peer tokens** (nexus, zephyr) | store `secrets/infra/hermes-a2a-peer-tokens.yaml` → rendered into `~/.hermes/.env A2A_PEER_TOKENS` **and** `~/.hermes/config.yaml a2a_agents.<peer>.auth.token` by `scripts/a2a-peer-token-rotate.py` | `scripts/a2a-peer-token-rotate.py check` — store vs live, fingerprints only, exit 0/1/2 |
 | Cloudflare (tokens, tunnels) | sops store + API | `GET /user/tokens/verify` |
 | j_kro's user-facing credentials | **Bitwarden** — j_kro sets/rotates them imperatively in the app (source of truth); machine resolution via secretspec `bw://` or `~/.local/bin/bw-run` (unlocked `bw` CLI on zephyr) | `bw-run --status`; `bw-run bw list items --search <q>` |
+| Cluster machine secrets (grafana-admin, pilot 2026-09-25) | **Bitwarden Secrets Manager** project `k3s` → **ESO pull** in k3s (ClusterSecretStore `bitwarden-secretsmanager`; CRs in media-k8s `cluster/addons/eso-secrets/`); rotation = change the value in the Bitwarden app, ESO refreshes ≤1h | `kubectl get clustersecretstore bitwarden-secretsmanager` (Ready); ExternalSecret `Ready=SecretSynced` |
 
 ## Rules
 
@@ -60,6 +61,12 @@ Garage — that is a one-way door, documented in the runbook.
    imperatively in the app; agents resolve them only via the secretspec `bw://` provider or the
    `bw-run` wrapper (unlocked `bw` CLI session on zephyr). Do not mirror them into the sops store
    unless a credential becomes an infra/machine secret.
+7. **Cluster machine secrets pull from Bitwarden Secrets Manager via ESO (2026-09-25).** The k3s
+   cluster resolves its own secrets — no zephyr push, no age key in-cluster. Bootstrap objects
+   (deliberately NOT in git): ns `external-secrets` holds `bitwarden-access-token` (BSM
+   machine-account token) and `bitwarden-tls-certs` (Homelab CA leaf for the SDK server; renew via
+   ops-log `cluster/external-secrets/issue-sdk-cert.sh`). Rotation = change the value in Bitwarden;
+   ESO refreshes within 1h. The sops/script rail stays for credentials that have not migrated.
 
 ## Known gaps
 
