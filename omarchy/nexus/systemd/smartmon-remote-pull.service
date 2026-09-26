@@ -1,0 +1,20 @@
+[Unit]
+Description=Pull SMART telemetry from hosts that must run no timers of their own (zephyr)
+Documentation=file:/home/j_kro/Work/Projects/ops-log/cluster/smart/README.md
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Runs as j_kro, not root: the KUBECONFIG and the ssh identity that reaches
+# zephyr both live in j_kro's context — root on nexus has neither (root's ssh
+# to zephyr fails host-key verification, and there is no /root/.kube/config).
+# On zephyr the pull uses `sudo -n` (passwordless, verified), so no key or
+# privilege is added anywhere.
+User=j_kro
+Environment=KUBECONFIG=/home/j_kro/.kube/config
+Environment=SMARTMON_FALLBACK_DIR=/home/j_kro/.local/state/smartmon-remote
+ExecStart=/usr/local/bin/smartmon-remote-pull
+# Same shape as the push-mode unit the other hosts run (smartmon-textfile.service):
+# this is a steady background reporter, so keep it off the critical path.
+Nice=10
+IOSchedulingClass=idle
