@@ -60,7 +60,8 @@ Garage — that is a one-way door, documented in the runbook.
 6. **User-facing credentials live in j_kro's Bitwarden (2026-09-25).** He sets and rotates them
    imperatively in the app; agents resolve them only via the secretspec `bw://` provider or the
    `bw-run` wrapper (unlocked `bw` CLI session on zephyr). Do not mirror them into the sops store
-   unless a credential becomes an infra/machine secret.
+   unless a credential becomes an infra/machine secret. Conversely, user-facing credentials never
+   enter BSM — the Secrets Manager org is machine-internal only (j_kro, 2026-09-26).
 7. **Cluster machine secrets pull from Bitwarden Secrets Manager via ESO (2026-09-25).** The k3s
    cluster resolves its own secrets — no zephyr push, no age key in-cluster. Bootstrap objects
    (deliberately NOT in git): ns `external-secrets` holds `bitwarden-access-token` (BSM
