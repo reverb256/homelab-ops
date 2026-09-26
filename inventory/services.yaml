@@ -1,0 +1,137 @@
+# Kubernetes workloads by namespace - purpose, exposure, isolation posture.
+# Exposure tokens: cloudflare-tunnel | lan-proxy | lan | lan-metrics |
+#                  tailscale | cluster-internal | egress-only
+# Isolation: default-deny (netpols live) | none (flat network).
+# netpol_plan: wave-2 marks internet-facing namespaces queued for isolation.
+version: 1
+updated: 2026-09-26
+
+kubernetes:
+  control_plane: [nexus, forge, sentry]
+  agents: [zephyr]
+
+  namespaces:
+    maplespike:
+      purpose: quill (portal, api, mcp) + redis + ingest cronjobs
+      exposure: [cloudflare-tunnel, lan-proxy]
+      isolation: default-deny
+    astral-key:
+      purpose: quill auth sidecar (passkey / wallet SIWE / JWT)
+      exposure: [cluster-internal]
+      isolation: default-deny
+    argocd:
+      purpose: GitOps controller (app-of-apps)
+      exposure: [lan]
+      isolation: default-deny
+    longhorn-system:
+      purpose: storage (PVCs)
+      exposure: [lan]
+      isolation: default-deny
+    media:
+      purpose: "*arr stack, Jellyfin, seerr, download clients, MCP sidecars"
+      exposure: [lan-proxy, tailscale]
+      isolation: none
+    media-reverse-proxy:
+      purpose: nginx-rp - *.lan vhosts into the cluster
+      exposure: [lan-proxy]
+      isolation: none
+    monitoring:
+      purpose: VictoriaMetrics, Grafana, exporters
+      exposure: [lan]
+      isolation: none
+    mining:
+      purpose: peakminer fleet + llama servers + miner telemetry
+      exposure: [lan-metrics]
+      isolation: none
+    trading:
+      purpose: trading stack (:9798, ufw-scoped)
+      exposure: [lan]
+      isolation: none
+    cloudflared:
+      purpose: Cloudflare tunnel connectors
+      exposure: [egress-only]
+      isolation: none
+    sites:
+      purpose: static site pods
+      exposure: [cloudflare-tunnel]
+      isolation: none
+      netpol_plan: wave-2
+    activepieces:
+      purpose: automation flows
+      exposure: [cloudflare-tunnel]
+      isolation: none
+      netpol_plan: wave-2
+    haven:
+      purpose: Haven bot/relay
+      exposure: [cloudflare-tunnel]
+      isolation: none
+      netpol_plan: wave-2
+    pihole:
+      purpose: DNS (.53)
+      exposure: [lan]
+      isolation: none
+    voice-models:
+      purpose: voice/TTS models
+      exposure: [cluster-internal]
+      isolation: none
+    chatterbox:
+      purpose: Chatterbox TTS service
+      exposure: [cluster-internal]
+      isolation: none
+    version-checker:
+      purpose: image-version watcher
+      exposure: [cluster-internal]
+      isolation: none
+    external-secrets:
+      purpose: ESO - BSM -> k8s secrets
+      exposure: [cluster-internal]
+      isolation: none
+    metallb-system:
+      purpose: load balancer
+      exposure: [cluster-internal]
+      isolation: none
+    tailscale:
+      purpose: tailscale operator + ingress proxies
+      exposure: [cluster-internal]
+      isolation: none
+    system-upgrade:
+      purpose: k3s upgrade machinery (SUC)
+      exposure: [cluster-internal]
+      isolation: none
+    calico-apiserver:
+      purpose: Calico API
+      exposure: [cluster-internal]
+      isolation: default-deny
+    calico-system:
+      purpose: Calico dataplane
+      exposure: [cluster-internal]
+      isolation: none
+    tigera-operator:
+      purpose: Calico operator
+      exposure: [cluster-internal]
+      isolation: none
+    kube-system:
+      purpose: k3s system (coredns, metrics, SUC)
+      exposure: [cluster-internal]
+      isolation: none
+    kube-node-lease:
+      purpose: k3s system
+      exposure: [cluster-internal]
+      isolation: none
+    kube-public:
+      purpose: k3s system
+      exposure: [cluster-internal]
+      isolation: none
+    default:
+      purpose: unused - no workloads run here
+      exposure: []
+      isolation: none
+
+  exposures:
+    cloudflare_tunnels:
+      - id: "66d7..."
+        hosts: [sites.reverb256.dev, quill.maplespike.ca, api.maplespike.ca, mcp.maplespike.ca, activepieces.reverb256.dev]
+      - id: "95a8..."
+        hosts: [haven.reverb256.dev]
+    lan_proxy: nginx-rp (media-reverse-proxy ns)
+    tailscale_ingresses: [jellyfin, seerr, activepieces]

@@ -1,0 +1,34 @@
+# Validate the inventory and gate drift on the generated architecture map.
+# The map must never go stale: any change to inventory/ that is not
+# accompanied by a regenerated docs/ARCHITECTURE-MAP.md fails here.
+name: inventory
+
+on:
+  push:
+    paths:
+      - 'inventory/**'
+      - 'bin/inventory-*'
+      - 'docs/ARCHITECTURE-MAP.md'
+      - '.github/workflows/inventory.yml'
+  pull_request:
+    paths:
+      - 'inventory/**'
+      - 'bin/inventory-*'
+      - 'docs/ARCHITECTURE-MAP.md'
+      - '.github/workflows/inventory.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PyYAML
+        run: python3 -m pip install --quiet pyyaml
+      - name: Validate inventory
+        run: python3 bin/inventory-validate
+      - name: Drift check (map must match inventory)
+        run: python3 bin/inventory-render --check

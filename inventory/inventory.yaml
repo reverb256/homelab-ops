@@ -1,0 +1,82 @@
+# Homelab inventory — single source of truth for FACTS about the fleet.
+#
+# Boundaries (never duplicate these here):
+#   secrets         -> Bitwarden Secrets Manager (machine-internal; sops on VPS)
+#   .lan DNS        -> omarchy/nexus/unbound/local-dns.conf (+ scripts/apply-dns.sh)
+#   service configs -> their own repos/charts (media-k8s, mining-k8s, quill, ...)
+#
+# Render: bin/inventory-render   Validate: bin/inventory-validate
+version: 1
+updated: 2026-09-26
+
+network:
+  lan:
+    cidr: 10.1.1.0/24
+    gateway: 10.1.1.1
+    dns_vip: 10.1.1.100      # keepalived VIP (nexus/sentry, nopreempt) -> unbound .lan
+    dns: 10.1.1.53           # pihole-dns (MetalLB LB)
+    ipv6: "2604:3d09:ae89:2700::/64"
+  tailnet:
+    cidr: 100.64.0.0/10
+    devices:
+      zephyr: 100.91.11.2
+      nexus: 100.76.105.73
+      forge: 100.85.63.36
+      sentry: 100.105.246.35
+      krash3: 100.70.222.88
+      oracle-vps: 100.64.0.1
+      omarchy-williams: 100.72.127.120   # unclassified device - identify, then name
+  k8s:
+    distro: k3s
+    cni: Calico (VXLAN)
+    service_cidr: 10.43.0.0/16
+    pod_cidr: 192.168.0.0/16   # per-node /24
+
+hosts:
+  zephyr:
+    ip: 10.1.1.110
+    os: Arch (Omarchy)
+    role: workstation; k3s agent (cordoned); GPU ops only - no services/timers/state
+    ram_gb: 31
+    gpus: ["RTX 3090 24G", "RTX 3060 Ti 8G"]
+    disks: ["954G NVMe (XPG)", "932G NVMe (980)"]
+  nexus:
+    ip: 10.1.1.120
+    os: Arch (Omarchy)
+    role: ops/builder; k3s control-plane; media + trading; fleet broker
+    ram_gb: 46
+    gpus: ["RTX 3060 Ti 8G"]
+    disks: ["4TB HDD (/data/media)", "466G EVO (/data/fast)", "932G NVMe (/)", "224G"]
+  forge:
+    ip: 10.1.1.130
+    os: Arch (Omarchy)
+    role: k3s control-plane; inference (llama servers)
+    ram_gb: 15
+    gpus: ["2x RTX 4060 8G", "2x RX 5700 XT (AMD inference)"]
+    disks: ["224G", "239G SSD"]
+  sentry:
+    ip: 10.1.1.140
+    os: Arch (Omarchy)
+    role: k3s control-plane; edge tasks; desktop (Hyprland) session
+    ram_gb: 31
+    gpus: ["AMD Navi 10 (RX 5600 XT/5700-class) - console GPU"]
+    disks: ["932G HDD", "239G SSD"]
+    notes: holds the .100 DNS VIP
+
+devices:
+  krash2:
+    ip: 10.1.1.79
+    os: Windows 11
+    role: miner (RTX 4060); qBittorrent (priority-2)
+  krash3:
+    ip: 10.1.1.150
+    os: Windows 11
+    role: miner (RTX 4060, opportunistic)
+  oracle-vps:
+    role: Oracle edge - Haven relay; headscale control plane
+    type: E2.1.Micro (1G, podman + zram)
+  reverb256-edge-02:
+    role: Oracle edge - Haven standby relay
+    type: E2.1.Micro (1G)
+  omarchy-williams:
+    role: unclassified tailnet device - identify and rename
