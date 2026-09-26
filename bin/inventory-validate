@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+"""Validate inventory/*.yaml - schema, unique addresses, cross-references.
+
+Catches the failure modes that matter (community-standard checks):
+duplicate addresses, addresses outside their declared CIDR, dangling
+references, unknown enum values. Exit 1 with a list of problems.
+"""
+import ipaddress
+import pathlib
+import sys
+
+import yaml
+
+ROOT = pathlib.Path(__file__).resolve().parent.parent
+EXPOSURE_OK = {"cloudflare-tunnel", "lan-proxy", "lan", "lan-metrics",
+               "tailscale", "cluster-internal", "egress-only"}
+ISOLATION_OK = {"default-deny", "none"}
+
+errors = []
+
+
+def err(msg):
+    errors.append(msg)
+
+
+inv = yaml.safe_load((ROOT / "inventory/inventory.yaml").read_text())
+svc = yaml.safe_load((ROOT / "inventory/services.yaml").read_text())
+
+hosts = inv.get("hosts", {})
+devices = inv.get("devices", {})
+net = inv["network"]
+lan_cidr = ipaddress.ip_network(net["lan"]["cidr"])
+ts_cidr = ipaddress.ip_network(net["tailnet"]["cidr"])
+ts_devices = net["tailnet"]["devices"]
+
+# --- unique LAN addresses ---
+seen_lan = {}
+for scope, items in (("hosts", hosts), ("devices", devices), ("tailnet", ts_devices)):
+    for name, v in items.items():
+        if scope == "tailnet":
+            ip, where = v, "tailnet"
+        else:
+            ip, where = v.get("ip"), scope
+        if not ip:
+            continue
+        key = (where, ip)
+        if key in seen_lan:
+            err(f"duplicate address {ip} ({where}): {seen_lan[key]} and {name}")
+        seen_lan[key] = name
+        net_obj = ipaddress.ip_address(ip)
+        cidr = lan_cidr if where in ("hosts", "devices") else ts_cidr
+        if net_obj not in cidr:
+            err(f"{name}: {ip} outside {cidr}")
+
+# --- host completeness + tailnet consistency ---
+for name, h in hosts.items():
+    for f in ("ip", "os", "role"):
+        if not h.get(f):
+            err(f"host {name}: missing field '{f}'")
+for name, d in devices.items():
+    if not d.get("role"):
+        err(f"device {name}: missing field 'role'")
+
+# --- services cross-references ---
+k = svc["kubernetes"]
+for role in ("control_plane", "agents"):
+    for n in k.get(role, []):
+        if n not in hosts:
+            err(f"k8s {role}: '{n}' is not a known host")
+for n, v in k["namespaces"].items():
+    for e in v.get("exposure", []):
+        if e not in EXPOSURE_OK:
+            err(f"namespace {n}: unknown exposure '{e}'")
+    if v.get("isolation") not in ISOLATION_OK:
+        err(f"namespace {n}: unknown isolation '{v.get('isolation')}'")
+
+if errors:
+    print("inventory INVALID:", file=sys.stderr)
+    for e in errors:
+        print(f"  - {e}", file=sys.stderr)
+    sys.exit(1)
+print(f"inventory ok: {len(hosts)} hosts, {len(devices)} devices, "
+      f"{len(k['namespaces'])} namespaces")
