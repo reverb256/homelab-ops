@@ -9,9 +9,12 @@ Every unit here exists for a named reason. If a unit has no purpose written belo
 | `haven.service` | The Haven chat server, podman, image tag from `/etc/haven/image.env`. Serves `haven.reverb256.dev`. |
 | `haven-updater.timer` / `.service` | Bumps the Haven image tag to upstream's newest published release and restarts. The host that serves users owns its own updates. |
 | `cloudflared.service` | Tunnel `haven-vps`: public ingress -> `127.0.0.1:3001`. Used instead of an origin certificate because headscale already owns :443. |
-| `headscale.service` | Tailnet control plane (DERP region 999, STUN :3478). Nodes: `k3s-pilot`, `oracle-vps`. |
-| `tailscaled.service` | The VPS itself as tailnet node `oracle-vps` (100.64.0.2) — private path for admin and future services. |
+| `headscale.service` | Tailnet control plane (DERP region 999, STUN :3478). Nodes: `oracle-vps` (100.64.0.1), `reverb256-edge-02` (100.64.0.3). |
+| `tailscaled.service` | The VPS itself as tailnet node `oracle-vps` (100.64.0.1 — re-registered 2026-09-25 after the node record was lost; the old `100.64.0.2` is retired) — private path for admin and future services. |
 | `oracle-keepalive.timer` | Deliberate idle workload. An Always Free instance idle 7 days (95th-pct CPU/network <20%) is reclaimed; an idle chat server would be. |
+| `deadman-pager` (+ check timer) | Public signed-heartbeat receiver (:8899) — pages the owner when nexus's stack-sentinel heartbeat goes quiet. Source: `solana-ai-trader` `deploy/deadman/`. |
+| `edge-probe.timer` | Probes the 5 public endpoints (maplespike, quill-web, quill-api, haven, headscale) → pager sinks. |
+| `haven-backup.timer` (5 min) | Haven snapshot → **peer micro** (`/var/backups/haven`, 288 kept) + R2 third copy. Consumed by edge-02's `haven-standby-sync`. |
 | `oracle-idle-watch` (on sentry) | Owns spend + instance lifecycle alerting. The only alerting owner for this box. |
 
 ## Deliberately NOT here

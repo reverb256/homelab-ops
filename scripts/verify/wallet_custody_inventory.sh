@@ -50,7 +50,7 @@ import subprocess
 import socket
 import _probe_lib as pl
 r = pl.Report("reachability")
-targets = ["zephyr", "forge", "sentry", "nexus", "oracle-vps", "100.64.0.2"]
+targets = ["zephyr", "forge", "sentry", "nexus", "oracle-vps", "100.64.0.1"]
 here = socket.gethostname()
 probed = 0
 for target in targets:
