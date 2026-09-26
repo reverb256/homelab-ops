@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# smartmon-remote-pull.sh — PULL SMART telemetry from a host that must run no
+# timers of its own, and import it into VictoriaMetrics.
+#
+# Why: zephyr is a workstation. The standing directive is that nothing is hosted
+# on zephyr — no services, no timers, no autonomous processes. The old design
+# installed smartmon-textfile.timer on every Linux host including zephyr. This
+# script inverts it: the SCRAPER (nexus) ships the collector over ssh on stdin,
+# reads the exposition text back, stamps the labels node-exporter would have
+# produced, and POSTs it to vmsingle's Prometheus import endpoint.
+#
+# Nothing is installed, written, or enabled on the target — it is read-only:
+#   ssh <host> 'sudo -n bash -s -- --stdout' < smartmon-textfile.sh
+#
+# Runs every 5 min from smartmon-remote-pull.timer (nexus), so a zephyr disk
+# failure still reaches the same `node_smartmon_*` alerts within one cycle.
+set -uo pipefail
+
+TARGETS="${SMARTMON_TARGETS:-zephyr}"
+SCRIPT="${SMARTMON_SCRIPT:-/usr/local/bin/smartmon-textfile.sh}"
+# instance must match the node-exporter instance label for that host, or the
+# per-host alerts and dashboards would see a second, unrecognised host.
+INSTANCE_MAP="${SMARTMON_INSTANCE_MAP:-zephyr=10.1.1.110:9100}"
+FALLBACK_DIR="${SMARTMON_FALLBACK_DIR:-/var/lib/smartmon-remote}"
+KUBECONFIG="${KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}"
+export KUBECONFIG
+
+PROVENANCE='job="node-exporter",collector="smartmon-remote-pull"'
+
+vm_url() {
+  if [ -n "${VM_IMPORT_URL:-}" ]; then printf '%s' "$VM_IMPORT_URL"; return 0; fi
+  local ip
+  ip="$(kubectl -n monitoring get svc vmsingle-vmstack-victoria-metrics-k8s-stack \
+        -o jsonpath='{.spec.clusterIP}' 2>/dev/null)"
+  [ -n "$ip" ] && printf 'http://%s:8428/api/v1/import/prometheus' "$ip"
+}
+
+instance_for() {
+  local host="$1" pair
+  for pair in $INSTANCE_MAP; do
+    [ "${pair%%=*}" = "$host" ] && { printf '%s' "${pair#*=}"; return 0; }
+  done
+  printf '%s' "$host"
+}
+
+[ -r "$SCRIPT" ] || { echo "collector not readable: $SCRIPT" >&2; exit 1; }
+
+rc_all=0
+for host in $TARGETS; do
+  inst="$(instance_for "$host")"
+  raw="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$host" \
+           'sudo -n bash -s -- --stdout' < "$SCRIPT" 2>/dev/null)"
+  if [ -z "$raw" ]; then
+    echo "pull failed: no telemetry from $host" >&2
+    rc_all=1
+    continue
+  fi
+  # keep the raw text so a broken import path is diagnosable without the target
+  mkdir -p "$FALLBACK_DIR" 2>/dev/null || true
+  printf '%s\n' "$raw" > "$FALLBACK_DIR/$host.prom" 2>/dev/null || true
+
+  labelled="$(printf '%s\n' "$raw" | awk -v extra="instance=\"$inst\",$PROVENANCE" '
+    /^[a-zA-Z_:][a-zA-Z0-9_:]*([[:space:]]|\{)/ {
+      if (index($0, "{") > 0) {
+        n = index($0, "{")
+        printf "%s{%s,%s\n", substr($0, 1, n-1), extra, substr($0, n+1)
+      } else {
+        split($0, a, /[[:space:]]+/)
+        printf "%s{%s} %s\n", a[1], extra, a[2]
+      }
+      next
+    }
+    { print }
+  ')"
+
+  url="$(vm_url)"
+  if [ -z "$url" ]; then
+    echo "cannot resolve the vmsingle import endpoint (kubectl failed)" >&2
+    rc_all=1
+    continue
+  fi
+  if printf '%s\n' "$labelled" | curl -sS --max-time 20 -X POST --data-binary @- "$url"; then
+    echo "imported $(printf '%s\n' "$labelled" | grep -c '^node_smartmon_') series for $host -> $url"
+  else
+    echo "import failed for $host ($url)" >&2
+    rc_all=1
+  fi
+done
+exit "$rc_all"

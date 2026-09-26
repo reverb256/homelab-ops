@@ -1,0 +1,12 @@
+[Unit]
+Description=Pull SMART telemetry from zephyr every 5 minutes
+
+[Timer]
+# Same 5-minute cadence the workstation used to push on, so alert latency for
+# zephyr's disks is unchanged after the timer was removed there.
+OnCalendar=*:0/5
+Persistent=true
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
