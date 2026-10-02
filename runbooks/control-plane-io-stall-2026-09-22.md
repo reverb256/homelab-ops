@@ -116,6 +116,17 @@ DECISION=start rate=24M psi_full_avg60=8.50 used=88%
    put containerd's root (or k3s's data-dir) on the second physical disk
    (`sda`, 223 GB, `/mnt/oldforge`) via a k3s containerd config template. Not done:
    it restarts every pod on the node.
+   **UPDATE 2026-10-02 (INCIDENT t_a3a44f39, card t_56d315ce): this has now
+   happened a second time, worse, and the numbers have moved.** A memory-induced
+   page-cache collapse on forge drove the same device to
+   `rate(node_disk_read_time_seconds_total{device="dm-0"}[5m])` 20.28 s/s and
+   `io_time_weighted` 26.69 s/s (7d p99 for that device: 6.43 and 7.44) — sshd,
+   kubelet and etcd all stopped answering and the node needed a hard power cycle,
+   ~2h36m of downtime. Re-measured sizes on `/dev/mapper/root`: containerd **40 GB**
+   (not 24 GB), etcd db 628 MB, journald 998 MB, plus a 16 GB swapfile that had
+   joined the same device. `/dev/sda2` idled at 0 bytes read throughout.
+   Decision taken, steps written, nothing executed:
+   `runbooks/forge-memory-and-single-ssd-2026-10-01.md` §4.
 2. **The churn source is the CronJob fleet.** ~10 pod starts/minute cluster-wide
    (trading-*, quill-ingest-*) plus Longhorn rollouts. Reducing that cadence is a
    business decision in `trading-k8s`.
