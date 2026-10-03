@@ -13,6 +13,10 @@
 #   2. passphrase file present + 0600
 #   3. every profiles/*/plugins/memlawb is a SYMLINK (not a copy)
 #   4. load probe: provider loads and resolves the namespace from config
+#   5. undecryptable-entry regression: no NEW entries fail decryption
+#      (baseline: scripts/verify/memlawb-undecryptable-baseline.json — 31 legacy
+#      entries written before 2026-08-21 with drifted writer parameters; they are
+#      skipped on recall and must never GROW)
 #
 # Usage: bash scripts/verify/memlawb-fleet-check.sh   (from anywhere; run on zephyr)
 set -u
@@ -38,6 +42,49 @@ p = L("memlawb", register_skills=False)
 print((p._namespace if p else "LOAD-FAIL"), "|",
       ("avail" if p and p.is_available() else "unavail"))
 PYEOF
+
+# --- undecryptable-entry regression gate (server-side state is global → runs once) ---
+cat > "$TMP/undecryptable_check.py" <<'PYEOF'
+import sys, json, hashlib, base64
+sys.path.insert(0, "/home/j_kro/Work/Projects/memlawb-for-hermes")
+from memlawb_provider.client import MemlawbClient, read_passphrase
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+base = json.load(open(sys.argv[1]))
+ns, known = base["namespace"], set(base["keys"])
+pw = read_passphrase().strip()
+c = MemlawbClient(url="http://100.76.105.73:8080", namespace=ns)
+entries = c.get_namespace()
+key = hashlib.scrypt(pw.encode(), salt=hashlib.sha256(f"memlawb:{ns}".encode()).digest(),
+                     n=1 << 15, r=8, p=1, dklen=32, maxmem=64 * 1024 * 1024)
+bad = []
+for k, b64 in entries.items():
+    blob = base64.b64decode(b64)
+    try:
+        AESGCM(key).decrypt(blob[1:13], blob[13:29] + blob[29:], k.encode())
+    except Exception:
+        bad.append(k)
+print(json.dumps({"total": len(entries), "bad": len(bad),
+                  "new": sorted(set(bad) - known), "healed": sorted(known - set(bad))}))
+PYEOF
+BASE="$(cd "$(dirname "$0")" && pwd)/memlawb-undecryptable-baseline.json"
+UVENV=/home/j_kro/.hermes/hermes-agent/venv/bin/python
+if [ -x "$UVENV" ] && [ -f "$BASE" ]; then
+  UOUT=$("$UVENV" "$TMP/undecryptable_check.py" "$BASE" 2>/dev/null || true)
+  if [ -n "$UOUT" ]; then
+    UNEW=$(printf '%s' "$UOUT" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["new"]))' 2>/dev/null || echo fail)
+    UBAD=$(printf '%s' "$UOUT" | python3 -c 'import json,sys; print(json.load(sys.stdin)["bad"])' 2>/dev/null || echo fail)
+    UHEAL=$(printf '%s' "$UOUT" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["healed"]))' 2>/dev/null || echo fail)
+    if [ "$UNEW" = 0 ]; then
+      ok "undecryptable entries: $UBAD known-legacy, 0 new"
+    else
+      bad "NEW undecryptable entries: was $UBAD, additions: $UNEW"
+      printf '%s' "$UOUT" | python3 -c 'import json,sys; [print("      ", k) for k in json.load(sys.stdin)["new"]]'
+    fi
+    [ "$UHEAL" = 0 ] || ok "$UHEAL baseline entries now decrypt — refresh baseline"
+  else
+    bad "undecryptable check failed to run"
+  fi
+fi
 
 check_host() {
   local host="$1" pyroot="$2" pypath="$3" probe_profile="$4"
