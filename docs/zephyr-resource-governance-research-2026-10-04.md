@@ -94,6 +94,25 @@ Companion to kanban t_8dc62bdf (zephyr RAM compliance) and the 2026-10-04 proces
 - oomd: swap limit 90 %, pressure 50 %/20 s, kill candidates = `app.slice` only; compositor safe.
 - oom_score_adj: peakminer ×4 = 999; llama-server = 905; user shell = ~200.
 
+## Cross-link — fleet GPU allocation (2026-10-04, kanban t_03de36be)
+
+The GPU half of this fleet's scheduling policy is recorded in
+`mining-k8s/docs/GPU-SCHEDULING-RESEARCH.md` §5:
+
+- per-card **roles** and the **headroom floors that are actually asserted**
+  (`media-k8s cluster/checks/verify-fleet.sh`: sentry-agent >= 3 GiB for the
+  media/VAAPI lane, nexus >= 500 MiB for inference + mining);
+- the **pass-through audit** — which of privileged / runtimeClass / device-plugin
+  each GPU pod really uses, and the measured proof that an unprivileged VAAPI pod
+  cannot open `/dev/dri/renderD128` at all (cgroup-v2 device allowlist);
+- the **decision not to enable native `nvidia.com/gpu` scheduling**, because it
+  would break the deliberate miner + inference co-residency that the floors exist
+  to protect.
+
+Host-side companion: `inventory/inventory.yaml` now records sentry's media lane
+(`homelab.io/gpu-class=media`) and its role as the NFS server for the media
+libraries.
+
 ## Sources
 - Hermes: docs/developer-guide/multiplexing-gateway · docs/user-guide/multi-profile-gateways · docs/reference/mcp-config-reference · docs/user-guide/features/mcp
 - cgroup v2: https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html · systemd.resource-control(5)
