@@ -9,7 +9,7 @@ _Inventory updated: 2026-09-26_
 |---|---|---|---|---|---|
 | forge | 10.1.1.130 | 100.85.63.36 | Arch (Omarchy) | k3s control-plane; inference (llama servers) | 2x RTX 4060 8G, 2x RX 5700 XT (AMD inference) |
 | nexus | 10.1.1.120 | 100.76.105.73 | Arch (Omarchy) | ops/builder; k3s control-plane; media + trading; fleet broker | RTX 3060 Ti 8G |
-| sentry | 10.1.1.140 | 100.105.246.35 | Arch (Omarchy) | k3s control-plane; edge tasks; desktop (Hyprland) session | AMD Navi 10 (RX 5600 XT/5700-class) - console GPU |
+| sentry | 10.1.1.140 | 100.105.246.35 | Arch (Omarchy) | k3s control-plane; edge tasks; media transcode (Jellyfin/VAAPI); desktop (Hyprland) session | AMD Navi 10 (RX 5600 XT/5700-class) - console GPU; media lane (VAAPI /dev/dri/renderD128, homelab.io/gpu-class=media) |
 | zephyr | 10.1.1.110 | 100.91.11.2 | Arch (Omarchy) | workstation; k3s agent (cordoned); GPU ops only - no services/timers/state | RTX 3090 24G, RTX 3060 Ti 8G |
 
 ## Devices

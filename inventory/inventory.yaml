@@ -57,11 +57,11 @@ hosts:
   sentry:
     ip: 10.1.1.140
     os: Arch (Omarchy)
-    role: k3s control-plane; edge tasks; desktop (Hyprland) session
+    role: k3s control-plane; edge tasks; media transcode (Jellyfin/VAAPI); desktop (Hyprland) session
     ram_gb: 31
-    gpus: ["AMD Navi 10 (RX 5600 XT/5700-class) - console GPU"]
-    disks: ["932G HDD", "239G SSD"]
-    notes: holds the .100 DNS VIP
+    gpus: ["AMD Navi 10 (RX 5600 XT/5700-class) - console GPU; media lane (VAAPI /dev/dri/renderD128, homelab.io/gpu-class=media)"]
+    disks: ["932G HDD", "/srv/media (NFS server for the media library)", "239G SSD"]
+    notes: holds the .100 DNS VIP; also NFS-exports /srv/media and (since 2026-10-04) the nexus media libraries for Jellyfin
 
 devices:
   krash2:
