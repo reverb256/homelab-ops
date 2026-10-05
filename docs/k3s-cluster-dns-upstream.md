@@ -1,7 +1,7 @@
 # k3s cluster DNS upstream — one managed resolv.conf for every node
 
-Status: **applied to sentry-agent and zephyr 2026-10-04; nexus and forge pending**
-(see §5). Incident: kanban `t_02f7d489`, parent `t_53727458`.
+Status: **applied to all four nodes 2026-10-05; verified 15/15.**
+Incident: kanban `t_02f7d489`, parent `t_53727458`.
 
 Every number below was read from the live cluster or a node on 2026-10-04/05 CDT.
 Nothing here is inferred.
@@ -99,38 +99,50 @@ Quorum: only one etcd voter (nexus, forge, sentry) may be restarted at a time �
 2 of 3 must remain. **While forge is down, do not restart nexus or sentry**: that
 would leave a single voter and take the cluster API down.
 
-## 5. Rollout state (2026-10-04 21:2x CDT)
+## 5. Rollout state — complete (2026-10-05 03:3x CDT)
 
-| host | files | kubelet resolvConf | verified |
+| host | files installed | kubelet resolvConf | verified |
 |---|---|---|---|
-| sentry-agent | installed 21:17 | `/etc/rancher/k3s/resolv.conf` | yes |
-| zephyr | installed 21:20 | `/etc/rancher/k3s/resolv.conf` | yes (miners untouched) |
-| nexus | **pending** | still k3s stub (`8.8.8.8`) | — |
-| forge | **pending** | still `10.1.1.53` | — |
+| sentry-agent | 2026-10-04 21:17 | `/etc/rancher/k3s/resolv.conf` | yes |
+| zephyr | 2026-10-04 21:20 | `/etc/rancher/k3s/resolv.conf` | yes (miners untouched) |
+| forge | 2026-10-05 03:32 | `/etc/rancher/k3s/resolv.conf` | yes (miners untouched) |
+| nexus | 2026-10-05 03:32 | `/etc/rancher/k3s/resolv.conf` | yes |
 
-nexus is pending only because forge is offline (see below); with one voter down,
-restarting nexus would break etcd quorum.
+Every restart kept running pods — measured, not assumed: on forge all 16 workloads
+(including the `peakminer-forge-*`, `llama-forge-*`, `llmster`, `nvpair` miners) and
+on nexus all ~110 pods held identical UIDs and container `startedAt` across
+`systemctl restart k3s`. All four nodes stayed `Ready` throughout.
 
-forge went unreachable at ~21:14 CDT 2026-10-04 (100% packet loss on LAN and
+forge had gone unreachable at ~21:14 CDT 2026-10-04 (100% packet loss on LAN and
 tailnet, kubelet last heartbeat 21:14:08) — the **third** occurrence of the
 single-SSD control-plane stall documented in
-`runbooks/forge-memory-and-single-ssd-2026-10-01.md`, which requires a hard power
-cycle by j_kro (the 2026-10-01 occurrence cost 2h36m of downtime). It is not
-related to this change: no file had been uploaded to forge before it went down,
-and the last forge-restarting action was none.
+`runbooks/forge-memory-and-single-ssd-2026-10-01.md`, cleared by a j_kro hard power
+cycle (host back ~6h later). It was not related to this change: no file had been
+uploaded to forge before it went down. With one of three etcd voters down, nexus was
+deliberately left pending until forge returned, so quorum (2 of 3) was never lost.
 
-Remaining steps once forge is back:
+### 5.1 Post-application verification (2026-10-05 03:35 CDT, live)
 
-```bash
-# 1. forge, then nexus (one at a time; check nodes in between)
-scripts/apply-k3s-resolv-conf.sh forge
-kubectl --kubeconfig=/home/j_kro/.kube/config get nodes
-scripts/apply-k3s-resolv-conf.sh nexus
-# 2. recreate the coredns pods so both replicas regenerate their /etc/resolv.conf
-kubectl --kubeconfig=/home/j_kro/.kube/config -n kube-system delete pod -l k8s-app=kube-dns
-# 3. verify
-bash scripts/verify/k3s-resolv-conf.sh
-```
+- `scripts/verify/k3s-resolv-conf.sh` from nexus: **15 pass, 0 fail**. The run
+  immediately before the nexus/forge apply was **8 fail** (nexus and forge unapplied;
+  both replicas answering `doubleclick.net` with a public address).
+- The two CoreDNS replicas were recreated and now answer the blocked canary as
+  `0.0.0.0`/`::` — Pi-hole filtering is restored for cluster lookups, and no replica
+  forwards to `8.8.8.8` anymore.
+- A fresh pod on **forge**, **nexus** and **sentry-agent** each resolved `github.com`
+  via `10.43.77.126` and got `0.0.0.0` for `doubleclick.net`. (The LB `10.1.1.53`
+  still times out from forge/nexus pods, as documented in §1 and by design.)
+- `verify-fleet.sh`: **§9s PASS** (managed path 4/4 nodes + per-replica Pi-hole
+  behaviour) and **§9p PASS** (SERVFAIL rate). §9s had FAILed on 7 consecutive
+  15-min timer runs before this change. Suite overall: 65 PASS / 8 FAIL; all 8 FAILs
+  are pre-existing and unrelated (ArgoCD SyncFailed/ComparisonError + site-agency-pipeline
+  Degraded, the arr-downloads parse-error check, arr→qbt auth chain ×3, etckeeper
+  missing on forge, and one transient sentry-unbound read that the next probe cleared).
+- The only acceptance item not closable inside the run: **24h of clean CoreDNS logs**.
+  The replicas were recreated minutes earlier and showed 0 `i/o timeout`/SERVFAIL over
+  the first 20 min. This is now watched continuously by the 15-min fleet-verify timer
+  (§9p + §9s), so a regression surfaces rather than sitting silent.
+- `pihole-dns` `externalTrafficPolicy` is still `Local` — untouched, as required.
 
 ## 6. Rollback (per host)
 
