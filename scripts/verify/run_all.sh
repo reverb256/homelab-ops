@@ -22,6 +22,7 @@ SCRIPTS=(
   wallet_custody_inventory.sh
   autonomy_audit.sh
   silent-failure-sweep.sh
+  dns-drift.sh
 )
 
 echo "verify/run_all.sh  host=$(hostname)  $(date '+%Y-%m-%d %H:%M:%S%z')"
