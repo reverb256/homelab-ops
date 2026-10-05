@@ -40,7 +40,17 @@ if [ -f "$LEDGER" ]; then
     INFO+=("prune ledger has ${rows} recorded deletions (last write ${age_min} min ago) - see ${LEDGER}")
     reported=yes
   }
-  [ "$age_min" -gt 30 ] && ALERTS+=("prune ledger idle ${age_min} min (${rows:-?} rows) - stalled, or finished: verify before assuming either")
+  if [ "$age_min" -gt 30 ]; then
+    # A ledger idle with a terminal status (run-verified|run-complete) is a FINISHED
+    # run: suppress. Do NOT use `|| echo 0` with grep -c — grep -c prints "0" AND
+    # exits 1 on no match, so that idiom yields "0\n0" and [ -eq ] errors out, which
+    # silently kills the alert in the very case it must fire. An empty read (timeout)
+    # also reads as 0 -> alert fires, fail-safe.
+    _ledger_terminal=$(timeout "$TO" grep -c -E "status.*(run-verified|run-complete)" "$LEDGER" 2>/dev/null)
+    if [ "${_ledger_terminal:-0}" -eq 0 ]; then
+      ALERTS+=("prune ledger idle ${age_min} min (${rows:-?} rows) - stalled, or finished: verify before assuming either")
+    fi
+  fi
 fi
 
 # 5. The cancelled migration must not be running.
