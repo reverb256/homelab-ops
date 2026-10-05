@@ -1,0 +1,13 @@
+# Managed by homelab-ops — source: omarchy/<host>/etc/rancher/k3s/config.yaml.d/10-resolv-conf.yaml
+# DO NOT hand-edit on the host. Edit the repo copy, commit, then
+#   scripts/apply-k3s-resolv-conf.sh <host>
+#
+# Pin the kubelet's resolvConf so every pod's /etc/resolv.conf — and therefore
+# CoreDNS's "forward ." target — is IDENTICAL on every node. k3s passes this to the
+# kubelet as --resolv-conf=<path> and skips its viability check for a manually
+# specified file, so the file is used verbatim.
+#
+# Why it is needed (per-node divergence, 2026-10-05) is documented in
+# /etc/rancher/k3s/resolv.conf itself, which this key points at.
+# kanban t_02f7d489 / incident t_53727458.
+resolv-conf: /etc/rancher/k3s/resolv.conf
