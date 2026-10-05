@@ -101,9 +101,7 @@ Result 2026-08-24: **ok=76 fail=0**.
 
 ## Open
 
-1. **Only zephyr has the key.** Same single-point-of-failure shape as before,
-   just moved. Decide the durable answer: a copy on each Omarchy host, a
-   password manager, or YubiKey-only with a documented recovery drill.
+1. ~~**Only zephyr has the key.**~~ RESOLVED 2026-09-23 — see `runbooks/age-key-distribution-decision-20260923.md`. Copied to nexus at `~/.config/sops/age/cluster-age-key.txt` (0600), all four quill SOPS files re-sealed to five recipients including `yubikey_nfc` and `offline_recovery`.
 2. **No rotation since 2026-07-25.** `.sops.yaml` notes that rotation followed
    a data-loss incident. Worth scheduling.
 3. **`nixos-secrets/flake.nix` is now vestigial** — it exists so NixOS could
