@@ -1,0 +1,30 @@
+# Static information about the filesystems.
+# See fstab(5) for details.
+
+# <file system> <dir> <type> <options> <dump> <pass>
+# /dev/mapper/root
+UUID=cbb006a6-e26c-4d24-8e51-eee5f133db8a	/         	btrfs     	rw,relatime,compress=zstd:3,ssd,space_cache=v2,subvol=/@	0 0
+
+# /dev/mapper/root
+UUID=cbb006a6-e26c-4d24-8e51-eee5f133db8a	/home     	btrfs     	rw,relatime,compress=zstd:3,ssd,space_cache=v2,subvol=/@home	0 0
+
+# /dev/mapper/root
+UUID=cbb006a6-e26c-4d24-8e51-eee5f133db8a	/var/cache/pacman/pkg	btrfs     	rw,relatime,compress=zstd:3,ssd,space_cache=v2,subvol=/@pkg	0 0
+
+# /dev/mapper/root
+UUID=cbb006a6-e26c-4d24-8e51-eee5f133db8a	/var/log  	btrfs     	rw,relatime,compress=zstd:3,ssd,space_cache=v2,subvol=/@log	0 0
+
+# /dev/sdb1
+UUID=BBFB-0400      	/boot     	vfat      	rw,relatime,fmask=0077,dmask=0077,codepage=437,iocharset=ascii,shortname=mixed,utf8,errors=remount-ro	0 2
+
+
+# Btrfs swapfile for system hibernation
+/swap/swapfile none swap defaults,pri=0 0 0
+UUID=dffa33dd-4869-4270-8af6-3cedeaf5afee  /srv/media  btrfs  rw,relatime,compress=zstd:3,space_cache=v2,subvol=media  0 0
+//10.1.1.79/krash2-storage /data/media/krash2-smb cifs credentials=/root/.creds/krash2-smb,uid=j_kro,gid=users,file_mode=0775,dir_mode=0775,noperm,noexec,vers=3.0,_netdev,x-systemd.automount,x-systemd.mount-timeout=30 0 0
+//10.1.1.150/krash3-storage /data/media/krash3-smb cifs credentials=/root/.creds/krash3-smb,uid=j_kro,gid=users,file_mode=0775,dir_mode=0775,noperm,noexec,vers=3.0,_netdev,x-systemd.automount,x-systemd.mount-timeout=30 0 0
+//10.1.1.79/Media /data/media/krash2-media cifs credentials=/root/.creds/krash2-smb,uid=j_kro,gid=users,file_mode=0775,dir_mode=0775,noperm,noexec,vers=3.1.1,_netdev,x-systemd.automount,x-systemd.mount-timeout=30 0 0
+//10.1.1.150/media /data/media/krash3-media cifs credentials=/root/.creds/krash3-smb,uid=j_kro,gid=users,file_mode=0775,dir_mode=0775,noperm,noexec,vers=3.1.1,_netdev,x-systemd.automount,x-systemd.mount-timeout=30 0 0
+10.1.1.120:/data/media/movies /data/media/movies nfs4 rw,soft,fatal_neterrors=none,timeo=100,retrans=2,sec=sys,rsize=1048576,wsize=1048576,_netdev,nofail,x-systemd.automount 0 0
+10.1.1.120:/data/media/tv /data/media/tv nfs4 rw,soft,fatal_neterrors=none,timeo=100,retrans=2,sec=sys,rsize=1048576,wsize=1048576,_netdev,nofail,x-systemd.automount 0 0
+10.1.1.120:/data/media/vault /data/media/vault nfs4 rw,soft,fatal_neterrors=none,timeo=100,retrans=2,sec=sys,rsize=1048576,wsize=1048576,_netdev,nofail,x-systemd.automount 0 0
