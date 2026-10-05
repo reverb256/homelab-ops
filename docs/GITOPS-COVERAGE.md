@@ -13,8 +13,8 @@ from live state before trusting it after a topology change — the commands are 
 |---|---|
 | ArgoCD Applications | **112** — all `Synced`; 110 `Healthy`, 1 `Degraded`, 1 `Progressing` |
 | GitOps source repos | 8 first-party + 3 upstream chart repos |
-| Workloads (Deploy/StatefulSet/DaemonSet/CronJob/Job) | **225** across 28 namespaces |
-| Workloads with a **direct** ArgoCD owner | **212** |
+| Workloads (Deploy/StatefulSet/DaemonSet) | **125** — live check: 125 owned, 0 unowned |
+| Sweep snapshot incl. CronJobs and live Jobs | **225**, of which **13** have no direct ArgoCD owner |
 | Workloads with **no** direct owner | **13** — all accounted for below |
 | Residual, genuinely hand-managed | **1** (`tigera-operator`, documented exception) |
 
@@ -52,7 +52,10 @@ ArgoCD applied that the cluster rejected. That is the failure mode to read first
 Operator-created objects that **are** covered because ArgoCD owns their parent:
 calico-system (5, from the `Installation` CR), monitoring vmstack (7, from the
 VictoriaMetrics operator), longhorn `engine-image-*` + 2 CronJobs (3). Ephemeral Jobs
-(40) are owned by CronJobs; ReplicaSets belong to their Deployments.
+are owned too — each one is parented to a CronJob or a Helm release
+(`activepieces-postgres-backup`, `daily-snapshot`, `quill-ingest-*`, the `trading-*`
+CronJobs, ...); a spot check of 49 live Jobs found **zero** without an owner — and
+ReplicaSets belong to their Deployments.
 
 ## The named stragglers — status
 
