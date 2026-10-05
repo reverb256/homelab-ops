@@ -331,3 +331,232 @@ is done) 16 GB of swap; a memory-induced page-cache collapse on forge will stall
 etcd and take the node unrecoverable.** Measured exposure: 2 confirmed
 occurrences in 10 days (2026-09-22 18:09Z, 2026-10-01 20:38 CDT), the second
 costing ~2h36m of node downtime and an unknown share of mining revenue.
+
+---
+
+## 5. RECONCILIATION and the achievable floor (2026-10-05, kanban t_b6c3f375)
+
+Written after `NodeSwapThrash` (tier-1) fired on forge at **2026-10-05T02:13Z**
+with MemAvailable 725 MB of 15.84 GiB and >5k pages/s swapout — the same
+precursor class as §1, four days later. **Every number below was read from the
+live host (ssh, `/proc`, `lsblk`, `journalctl`), from VictoriaMetrics, or from
+the live Kubernetes objects during this run.** Nothing is inferred.
+
+### 5.1 Which decisions are still pending — reconciled against live state
+
+| from | decision | state today | evidence |
+|---|---|---|---|
+| §2a | llama memory limits 36 GiB -> 12 GiB | **DONE** | live limits 4Gi / 3Gi / 5Gi (4,294,967,296 / 3,221,225,472 / 5,368,709,120 B) |
+| §2b | remove `/swap/swapfile`, cap zram at 4 GiB | **PENDING — needs j_kro** | `/proc/swaps` still lists `/swap/swapfile 16224856 kB, Used 0, prio 0` **and** `/dev/zram0 16224252 kB, Used 715944 kB, prio 100`; `/etc/systemd/zram-generator.conf*` still does not exist; `/etc/fstab` still carries the line |
+| §2c | node-health alerts + tests | **DONE, then extended** | see §5.4 |
+| §4 | move containerd off `/dev/mapper/root` | **PENDING — needs j_kro** | unchanged; `/dev/mapper/root` is still the only container-storage device |
+| — | the 131K ctx on both 4060s | **RESOLVED: not a lever any more** | see §5.5 |
+
+**§2b is the load-bearing one, and this run added a blocker it must clear.**
+The kernel command line on forge is:
+
+```
+cryptdevice=...:root:allow-discards,no-read-workqueue,no-write-workqueue
+root=/dev/mapper/root zswap.enabled=0 rootflags=subvol=@ rw rootfstype=btrfs
+resume=/dev/mapper/root resume_offset=1882172 ...
+```
+
+`resume_offset=1882172` on `/dev/mapper/root` is **the swapfile**. §2b's step 1
+removes it, so executing §2b as written also removes forge's hibernation target.
+The runbook already flags the hibernation trade-off; this records that the
+kernel is actually configured to use the file, so the decision is live rather
+than theoretical. `zswap.enabled=0` also means the only compressed-RAM path in
+play is zram itself — there is no second, silently-enabled compressor to account
+for.
+
+### 5.2 Two things this runbook did not know, both measured
+
+**1. The model weights are on the etcd device too.** §1 and §4 record that
+`/dev/mapper/root` carries etcd's WAL, containerd, journald and the swapfile. It
+also carries the models:
+
+```
+$ df -h /home/j_kro/models
+Filesystem        Size  Used Avail Use% Mounted on
+/dev/mapper/root  237G  137G   98G  59% /home
+```
+
+Every llama member mmaps its GGUF from a hostPath under that mount
+(`weightsHostPath: /home/j_kro/models`). So a page-cache collapse on forge does
+not merely refault container layers — it refaults the weight files, on the same
+device as the write quorum. That is a sharper version of the §1 hazard, and it
+is the reason the *reclaimable* set matters as much as the anonymous one.
+
+**2. The three GPUs hold 2.66 GiB of host RAM that no pod accounts for.**
+
+```
+$ grep GPUActive /proc/meminfo
+GPUActive:       2785056 kB     # 2.66 GiB
+GPUReclaim:           76 kB     # effectively unreclaimable
+```
+
+That is 17% of the box, held by the driver, outside every cgroup and outside
+every limit in §2a. It is part of the floor arithmetic in §5.3 and it is why a
+"sum of pod usage" never reconciled with `MemTotal`.
+
+### 5.3 The achievable floor: **1.5 GiB MemAvailable** (hard breach line 1.0 GiB)
+
+`MemTotal` on forge is **15.84 GiB** (16,224,348 kB). A floor of 1.5 GiB is
+therefore ~10% of RAM, consistent with the percentage form the node-health rules
+already use. The arithmetic that says it is *reachable*:
+
+| item | GiB | reclaimable? | source |
+|---|---|---|---|
+| GPU driver (`GPUActive`) | 2.66 | **no** | `/proc/meminfo` |
+| k3s-server (etcd+apiserver+scheduler+controller) | 0.74 | no | `RssAnon` on PID 31568 |
+| system pods (containerd, longhorn, calico, coredns, csi, speaker, exporters) | ~1.6 | no | cAdvisor |
+| peakminer x2 | 0.19 | no | `RssAnon` |
+| llmster | <= 1.35 | mostly no | 7d max working set 1,379 MiB |
+| the three llama members (`RssAnon` worst case) | <= 5.35 | no | per-PID `RssAnon`, 7d maxima |
+| kernel + slab + page tables + zram compressed | ~0.6 | partly | `/proc/meminfo` |
+| **non-reclaimable subtotal** | **~12.5** | | |
+| page cache (the mmap'd weights, reclaimable) | remainder | **yes** | `mapped_file` |
+
+15.84 - 12.5 leaves ~3.3 GiB, so a 1.5 GiB floor fits **if the peak holds at
+12.5 GiB**. It does not hold today:
+
+```
+forge, 7d to 2026-10-05T08:45Z, 5-minute windows:
+  MemAvailable / MemTotal   < 1.5 GiB : 100% of windows
+                            < 1.0 GiB :  80%
+  MemFree                    p50 476 MiB
+  Cached                     p50 1,687 MiB   (min 1,233)
+  AnonPages                  p50 5,083 MiB   (max 6,950)
+  zram swap used             max 3,836 MiB
+  rate(node_vmstat_pswpout[5m])  p50 272 / p90 2,803 / p95 5,676 / max 22,259 p/s
+```
+
+**So the floor is stated, it is arithmetically reachable, and it is not held.**
+The gap is not one workload's size. It is that the box's failure mode is
+unbounded: 30.94 GiB of swap, of which 15.47 GiB sits on the etcd device, with
+
+```
+$ cat /proc/sys/vm/swappiness
+150
+```
+
+(upstream default 60). At that swappiness the kernel reaches for anonymous pages
+long before it has to, so a spike becomes the two-way page storm §1 describes
+instead of one bounded OOM kill. **No change available in GitOps removes that**;
+it is §2b. Until §2b is executed the honest position is: the floor is a target
+the host is permanently below, and the useful signal is the stall, not the level
+(§5.4).
+
+### 5.4 Enforcement committed
+
+Two things were changed, both in this fleet's normal pull path, and both are
+regression-tested.
+
+**a. llmster idle-unload policy on the RAM-bound nodes** (`mining-k8s`:
+`helm/charts/llmster/values.yaml` + `templates/daemonset.yaml`, offline test
+`scripts/test-llmster-idle-ttl.sh`). llmster's `8Gi` limit is **5.9x forge's
+measured 7-day maximum** (1,379 MiB) and LM Studio's own `modelLoadingGuardrails`
+already refuse loads over 4 GiB — so that limit never intervenes; it only tells
+the kernel not to. What a declarative change *can* bound is how long a
+JIT-loaded model holds host RAM. Forge's live setting, read from
+`~/.lmstudio/settings.json`, was LM Studio's stock default:
+
+```json
+"developer": { "jitModelTTL": { "enabled": true, "ttlSeconds": 3600 } }
+```
+
+The chart now lowers `ttlSeconds` to **600** on `lowRamNodes: [forge]`, under the
+same safety rule the model-config writer already used: **an operator's own value
+is never overwritten.** The rewrite fires only while the stored value is still
+the stock 3600, keeps a `.pre-ttl-<epoch>` copy, and logs what it did. The
+offline test exercises exactly those four cases (lower / idempotent / operator
+value preserved / node scope holds) against the *rendered* manifest.
+
+**b. The pre-thrash alert** (`media-k8s`:
+`cluster/addons/monitoring-rules/node-health.yaml`, test in
+`tests/test_monitoring_invariants.py`):
+
+```
+ForgeMemoryThrashImminent  (warning, tier t2, for: 5m)
+  (node_memory_MemAvailable_bytes{instance="10.1.1.130:9100"} < 1.5 * 1073741824)
+  and (rate(node_pressure_memory_stalled_seconds_total{instance="10.1.1.130:9100"}[10m]) > 0.10)
+  and (avg_over_time(rate(node_vmstat_pswpout{instance="10.1.1.130:9100"}[5m])[15m:5m]) > 500)
+```
+
+**Why not simply a lower `pswpout` line**, which is what the card first asked
+for: measured over the same 7d, every MemAvailable line low enough to precede
+`NodeSwapThrash` is a line forge sits on **100% of the time**, and `pswpout` at
+2000 p/s is crossed 11.6% of the time (the reasoning is recorded in the rule
+file itself). A second percentage rule is wallpaper, which is why §2c
+deliberately has only one. The discriminating quantity on this host is not
+*pressure*, it is **stall** — the wall-clock time work actually loses to reclaim
+— and node_exporter exposes it via PSI:
+
+```
+forge, same 7d window:
+  rate(node_pressure_memory_stalled_seconds_total[5m])  ("full")
+      > 0.05 s/s -> 6.4% of windows
+      > 0.10 s/s -> 1.0%
+  nexus / zephyr / sentry-agent: p95 = 0.00 s/s  (not separable from zero)
+  the tier-1 rule it precedes: pswpout > 5000 -> 6.6% of windows
+  THE RULE ABOVE                                        -> 0.9% of windows
+```
+
+0.9% against 6.6% is 7x rarer than the alert it precedes, and it names the
+stated floor while it fires.
+
+### 5.5 What was deliberately NOT changed, and the measurement that says so
+
+- **The 4060 ctx was left at 131072 and the 5700 XT was left with no
+  `--load-mode`.** The card's shape ("the members' ctx/loading choices decide the
+  real margin") is not what the measurements show. Read off the running members
+  on forge (`/proc/<pid>/cmdline`, `/proc/<pid>/status`, 2026-10-05T03:41 CDT):
+
+  | member | ctx | flags | RssAnon | RssFile | RssShmem | 7d max working set |
+  |---|---|---|---|---|---|---|
+  | forge-4060-0 | 131072 | `--no-host --load-mode mmap` | 307 MiB | 64 MiB | 232 MiB | 2,542 MiB |
+  | forge-4060-1 | 131072 | `--no-host --load-mode mmap` | 363 MiB | 66 MiB | 232 MiB | 1,853 MiB |
+  | forge-5700xt | 16384 | (auto) | 134 MiB | 38 MiB | 0 | 4,923 MiB |
+
+  Three members together hold **~0.8 GiB of anonymous host RAM**, against limits
+  of 4 / 3 / 5 GiB. Cutting ctx would buy a fraction of a member's footprint and
+  cost real capability, so it is not the lever — and changing it without a
+  measured gain would be the same mistake as the 2000 p/s alert.
+- **The 5700 XT's RAM-compliance exemption is now closed as unnecessary on v4 —
+  and v5 changed that member's footprint.** Its app file withheld `--load-mode
+  mmap` because `auto` "may have resolved to `none`" — unverified. On **v4** it
+  is now verified the other way: with no `--load-mode` flag,
+  `container_memory_mapped_file` on that member reached **4,901 MiB** against an
+  `rss` max of 2,002 MiB and a live `RssAnon` of 134 MiB. That is the GGUF in
+  file-backed page cache, so `auto` **did** map it and `--load-mode mmap` would
+  be a no-op.
+  **But a canary landed the same day** (`mining-k8s` 5dbd969, t_ae8494f4, image
+  v4 -> v5, pod started 2026-10-05T08:41:08Z) and the same probe 25 minutes into
+  the v5 pod reads **RssAnon 919 MiB, RssFile 30 MiB, mapped_file 30 MiB
+  (2,490 MiB peak during load)**. So v5 maps the weights while loading and then
+  settles at ~0.9 GiB of **anonymous** host RSS — ~7x v4, and not reclaimable.
+  The 5.35 GiB figure in the §5.3 budget is therefore a **v4** measurement and a
+  full observation window on v5 is a **follow-up**, not a change made here. Both
+  readings are recorded in `helm/apps/llama-forge-5700xt.yaml`, scoped by image.
+  **`helm/apps/llama-forge-5700xt.yaml` is a hotspot**: a sibling card changed it
+  the same day, so this note and that image bump landed one commit apart.
+- **No member was removed.** The three together are ~0.8 GiB of anonymous host
+  RAM; dropping one would cost a served endpoint for less than the measurement
+  noise, and the miners are not at risk (`peakminer` uses 136-157 MiB against a
+  512Mi limit).
+
+### 5.6 Verification status — read this before treating the incident as closed
+
+- `NodeSwapThrash` and `NodeMemoryHighUtilization` were **not firing at
+  2026-10-05T08:50Z**. That is **not** evidence the fix works: the host was
+  powered back up at **2026-10-05T08:23:58Z** after being off-net since
+  02:19:38Z, so the quiet state is 27 minutes old. The card's 24-hour
+  "clear and stay clear" check **cannot be observed in this run** and must be
+  read off the alerts after 2026-10-06T08:24Z.
+- Two unrelated warnings are firing on forge and are not this card:
+  `etcdHighCommitDurations` (10.1.1.130:2381) and `BtrfsCorruptionGrowing`
+  (10.1.1.130:9100).
+- **The floor is not held and will not be held until §2b is executed.** The
+  commits in §5.4 bound the worst case and add the missing early signal; they do
+  not remove 30.94 GiB of swap from a box whose anonymous set peaks near 7 GiB.
+
