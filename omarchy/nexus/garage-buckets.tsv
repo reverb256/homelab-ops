@@ -17,7 +17,7 @@
 # bucket                key                     permissions
 memlawb                 memlawb-key             read,write
 haven                   haven-backup            read,write
-k3s-etcd                k3s-etcd                read,write
+k3s-etcd                k3s-etcd-final          read,write
 k3s-longhorn-backups    longhorn-backup         read,write
 trading-backups         trading-backup          read,write
 activepieces            activepieces-s3         read,write

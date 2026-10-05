@@ -1,3 +1,16 @@
+# /etc/systemd/system/k3s.service — k3s server unit for sentry-agent (declaration).
+#
+# The host unit is HAND-MANAGED (installed by hand, not by an apply.sh) and carries
+# .bak-* siblings. Keep this copy in sync with it: a declaration that has drifted from
+# the host is exactly how sentry ran 14 days with a dead etcd-backup credential while
+# every backup looked healthy (kanban t_e13e4db4; see
+# runbooks/garage-k3s-etcd-key-missing-2026-10-05.md).
+#
+# The etcd snapshot credentials come from /etc/systemd/system/k3s.service.env
+# (K3S_ETCD_S3_KEY / K3S_ETCD_S3_SECRET, mode 0600) — the same mechanism nexus and
+# forge use. Key MATERIAL is deliberately never committed here; before 2026-10-05 this
+# file carried the plaintext key, which is how it survived as a dead id after the
+# 2026-09-20 garage rebuild dropped the key it named.
 [Unit]
 Description=k3s server (join nexus)
 After=network-online.target
@@ -7,6 +20,9 @@ StartLimitIntervalSec=5min
 
 [Service]
 Type=simple
+EnvironmentFile=-/etc/default/%N
+EnvironmentFile=-/etc/sysconfig/%N
+EnvironmentFile=-/etc/systemd/system/k3s.service.env
 Environment="CONTAINERD_NRI_DISABLED=1"
 ExecStart=/usr/local/bin/k3s server \
   --server=https://10.1.1.120:6443 \
@@ -51,8 +67,8 @@ ExecStart=/usr/local/bin/k3s server \
   --etcd-s3-endpoint=100.76.105.73:3900 \
   --etcd-s3-region=garage \
   --etcd-s3-bucket=k3s-etcd \
-  --etcd-s3-access-key=GKa75e6a71911a9a0d3ac6dd32 \
-  --etcd-s3-secret-key=523ef0d5330b5fa37fc152d24958022abc7fdb135409cbf5d1c6d83de9109c22 \
+  --etcd-s3-access-key=${K3S_ETCD_S3_KEY} \
+  --etcd-s3-secret-key=${K3S_ETCD_S3_SECRET} \
   --etcd-s3-insecure \
   --etcd-s3-skip-ssl-verify \
   --kube-controller-manager-arg=terminated-pod-gc-threshold=500 \
