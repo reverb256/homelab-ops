@@ -49,6 +49,14 @@ ArgoCD applied that the cluster rejected. That is the failure mode to read first
 | 3 | `tailscale/ts-activepieces-*`, `ts-jellyfin-*`, `ts-seerr-*` | Accepted: created at runtime by the Tailscale operator (`tailscale-operator` app) |
 | 1 | `tigera-operator/tigera-operator` | Accepted, documented exception — see `helm/apps/calico-tigera.yaml` |
 
+> **Adoption note.** `generic-device-plugin` was applied on 2026-10-05 by a concurrent
+> card (`t_d89cdac0`, sentry VAAPI hardening) — work in flight, not an abandoned
+> straggler. It still lived in **no repository**, so a node recreate would have lost it.
+> It was captured verbatim (zero `kubectl diff`), so adoption changed nothing on the
+> wire. Any further change to either DaemonSet must now go through
+> `media-k8s/cluster/addons/device-plugins/`: the `device-plugins` app runs
+> `selfHeal: true` and will revert a live-only edit.
+
 Operator-created objects that **are** covered because ArgoCD owns their parent:
 calico-system (5, from the `Installation` CR), monitoring vmstack (7, from the
 VictoriaMetrics operator), longhorn `engine-image-*` + 2 CronJobs (3). Ephemeral Jobs
