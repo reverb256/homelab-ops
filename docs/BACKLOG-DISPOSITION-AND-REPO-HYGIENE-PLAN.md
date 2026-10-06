@@ -100,6 +100,18 @@ pass cannot repeat this one.
 **Recommended order:** 1 → 3 → 2. Phase 1 costs nothing and removes the misleading signals;
 until P1 exists, any other hygiene view is built on `pushed_at` and will lie again.
 
+### P7 — The workspace docs an agent reads first are not in git
+`~/Work` and `~/Work/Projects` are **not git repositories** (verified 2026-10-06). So
+`AGENTS.md`, `Projects/AGENTS.md` and `Projects/knowledge.md` — the files every agent loads at
+session start — have no history, no review, and drift silently. They were still presenting
+`nixos-config/` and `Reverb-OS/` as live homelab entrypoints and instructing a NixOS/Colmena
+workflow months after both were dead.
+**Fix:** correct in place now (done 2026-10-06), then move the durable parts into a tracked repo
+(`homelab-ops`) with the workspace copy generated or symlinked, so a claim in them can be diffed
+and sourced like any other.
+*Tradeoff:* a generated workspace doc needs a refresh step; an untracked one needs nothing and
+lies silently. **Recommend tracking.**
+
 ---
 
 ## 5. One open question for j_kro
