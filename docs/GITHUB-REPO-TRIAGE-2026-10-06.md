@@ -96,6 +96,30 @@ Evidence, strongest first:
 still wanted, (2) delete or rewrite the false `docs/current-state.md`, (3) close the 11
 dependabot PRs, (4) archive. 17 repos are already archived, so the practice is established.
 
+## Actions taken (2026-10-06)
+
+Archived at j_kro's instruction — **9 repos**, taking the account from 17 archived to
+**26 archived / 76 live**:
+
+`AstralVibe.ca` · `AstralDev` · `synapse` · `Frostbite-Gazette` · `vllm-turboquant` ·
+`kelos-infra` · `void-config` · `Reverb-OS` · `nixos-config`
+
+All nine verified `archived=true` by a fresh read after the write.
+
+**Consequence — 58 open items are now frozen.** An archived repo is read-only, so they can
+neither be merged nor closed without unarchiving first:
+
+| repo | open PRs | open issues |
+|---|---|---|
+| nixos-config | 6 | 40 |
+| Reverb-OS | 11 | 1 (#12 — the decommission plan itself) |
+| Frostbite-Gazette | 0 | 12 |
+| kelos-infra | 0 | 8 |
+
+The 17 dependabot PRs across `nixos-config` and `Reverb-OS` will never merge. Cleaning them
+needs an unarchive → close → re-archive pass, and the 40 `nixos-config` issues should be read
+for migration content before anything closes them.
+
 ## Loose ends worth closing in the same pass
 
 - **9 of ours open PRs** outside quill: `ai-content-pipeline#1` (09-02), `nixos-config#706–709`
