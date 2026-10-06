@@ -106,19 +106,32 @@ Archived at j_kro's instruction — **9 repos**, taking the account from 17 arch
 
 All nine verified `archived=true` by a fresh read after the write.
 
-**Consequence — 58 open items are now frozen.** An archived repo is read-only, so they can
-neither be merged nor closed without unarchiving first:
+### Follow-up pass — completed (same day)
 
-| repo | open PRs | open issues |
-|---|---|---|
-| nixos-config | 6 | 40 |
-| Reverb-OS | 11 | 1 (#12 — the decommission plan itself) |
-| Frostbite-Gazette | 0 | 12 |
-| kelos-infra | 0 | 8 |
+Archiving froze **78 open items** (61 issues + 17 PRs). A second pass, on instruction,
+unarchived → exported → closed → re-archived all four repos:
 
-The 17 dependabot PRs across `nixos-config` and `Reverb-OS` will never merge. Cleaning them
-needs an unarchive → close → re-archive pass, and the 40 `nixos-config` issues should be read
-for migration content before anything closes them.
+- **Exported first:** every item's title, labels and body is preserved live in
+  [`ARCHIVED-REPO-BACKLOG-EXPORT-2026-10-06.md`](ARCHIVED-REPO-BACKLOG-EXPORT-2026-10-06.md)
+  (130 KB, all 61 issue bodies).
+- **Closed:** 61 issues + 17 PRs (PR branches deleted), each carrying a comment pointing at the
+  export and stating that reopening is possible.
+- **Re-archived:** all four verified `archived=true` with **0 open items** remaining.
+
+**Unresolved, and the important part — 36 of the 61 issues were labelled `agent-ready` / `p0` /
+`p1` / `security` / `critical`.** They are live work that died with its tracker, not dead-repo
+noise. Four are security items:
+
+| item | title |
+|---|---|
+| nixos-config #306 | migrate: replace sops-nix/agenix with secretspec across all projects (`p1, security`) |
+| nixos-config #464 | `ai-inference-gateway-secrets` contains placeholder keys (autoapplied) (`security, k8s`) |
+| nixos-config #466 | re-add maplespike billing/JWT secrets to secretspec (`security`) |
+| kelos-infra #6 | rotate exposed credentials and enforce RBAC at AIG level (`agent-ready, security, critical`) |
+
+Also live: `Frostbite-Gazette` #8/#9/#10/#11 (`p1`/`p0` — MapleSpike MCP migration, SEDAR+/CRTC
+modules, UN/WEF/SDG integration, test-coverage dogfood pipeline) and the `kelos-infra` #1–#8
+pi-pipeline set. **These need a home in a live tracker** — the export is preservation, not a plan.
 
 ## Loose ends worth closing in the same pass
 
