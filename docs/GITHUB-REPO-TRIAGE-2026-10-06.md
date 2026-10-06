@@ -108,15 +108,19 @@ All nine verified `archived=true` by a fresh read after the write.
 
 ### Follow-up pass — completed (same day)
 
-Archiving froze **78 open items** (61 issues + 17 PRs). A second pass, on instruction,
+Archiving froze **81 open items** (61 issues + 20 PRs — three dependabot PRs appeared mid-pass
+and were caught in the final sweep). A second pass, on instruction,
 unarchived → exported → closed → re-archived all four repos:
 
 - **Exported first:** every item's title, labels and body is preserved live in
   [`ARCHIVED-REPO-BACKLOG-EXPORT-2026-10-06.md`](ARCHIVED-REPO-BACKLOG-EXPORT-2026-10-06.md)
   (130 KB, all 61 issue bodies).
-- **Closed:** 61 issues + 17 PRs (PR branches deleted), each carrying a comment pointing at the
+- **Closed:** 61 issues + 20 PRs (branches deleted), each carrying a comment pointing at the
   export and stating that reopening is possible.
-- **Re-archived:** all four verified `archived=true` with **0 open items** remaining.
+- **Re-archived:** all four verified `archived=true` with **0 open items** remaining. The
+  read-only rule is now confirmed by the API itself: attempting a close on an archived repo
+  returns `GraphQL: Repository was archived so is read-only (closePullRequest)` — which is why
+  the sweep needs an unarchive/close/re-archive cycle.
 
 **Unresolved, and the important part — 36 of the 61 issues were labelled `agent-ready` / `p0` /
 `p1` / `security` / `critical`.** They are live work that died with its tracker, not dead-repo
