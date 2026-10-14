@@ -30,7 +30,23 @@ loadint=${load1%%.*}
 [ -n "$loadint" ] && [ "$loadint" -gt 60 ] && ALERTS+=("load average ${load1} - nexus is saturated")
 
 # 3. Cluster readiness - cheap, and the thing that actually breaks.
-timeout 25 k3s kubectl get nodes --request-timeout=20s >/dev/null 2>&1 || ALERTS+=("k3s API not answering - cluster unreachable from nexus")
+#    Report WHY it failed. k3s rewrites /etc/rancher/k3s/k3s.yaml as 0600 root:root on
+#    every start, and `k3s kubectl` then dies with
+#      error loading config file "...": open ...: permission denied
+#    That is a credential-mode problem, NOT a cluster outage — but this probe used to
+#    report it as "cluster unreachable from nexus" (2026-10-14 16:00/16:30 runs, while
+#    the API answered in 0.1s), which sent the triage hunting a nonexistent outage.
+#    STORAGE_WATCH_KUBECONFIG exists so the message can be proven to name the reason.
+_kc=${STORAGE_WATCH_KUBECONFIG:-/etc/rancher/k3s/k3s.yaml}
+_k3s_err=$(timeout 25 k3s kubectl --kubeconfig="$_kc" get nodes --request-timeout=20s 2>&1 >/dev/null)
+_k3s_rc=$?
+if [ "$_k3s_rc" -ne 0 ]; then
+  # Prefer the specific cause (head -1: one kubectl line can match twice, and the alert
+  # must stay single-line); the generic 'error loading config file' only names a class.
+  _why=$(printf "%s\n" "$_k3s_err" | grep -m1 -oE "permission denied|no such file or directory|connection refused|refused|timed out|Timeout|no route to host|EOF" | head -1)
+  [ -n "$_why" ] || _why=$(printf "%s\n" "$_k3s_err" | grep -m1 -oE "error loading config file[^:]*" | head -1)
+  ALERTS+=("k3s API not answering - cluster unreachable from nexus (rc=$_k3s_rc kubeconfig=$_kc: ${_why:-no output})")
+fi
 
 # 4. Prune progress, from the deletion ledger's own mtime (no volume IO).
 if [ -f "$LEDGER" ]; then

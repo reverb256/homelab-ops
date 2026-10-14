@@ -73,4 +73,35 @@ else
   check 1 "drop-in missing: $DROPIN — the next k3s restart resets $KC to 0600 root:root and every kubectl lane goes dark again"
 fi
 
+section "storage-watch probe names the real reason"
+# 2026-10-14: nexus-storage-watch (cron d3f69d264c90, every 30m) reported
+#   k3s API not answering - cluster unreachable from nexus
+# on its 16:00 and 16:30 runs for exactly the unreadable-kubeconfig case above, while
+# the API answered in 0.1s and every node stayed Ready — the message hid the cause and
+# put the job in a failure streak that turned the trading sentinel RED. This asserts the
+# probe now reports WHY. Uses a mode-000 COPY of the live file; the live file is untouched.
+SW="${STORAGE_WATCH:-$HERE/storage-watch.sh}"
+if [ ! -f "$SW" ]; then
+  check 1 "storage-watch.sh not found at $SW"
+else
+  KC000="$(mktemp "${TMPDIR:-/tmp}/kc-000.XXXXXX")"
+  if cp "$KC" "$KC000" 2>/dev/null && chmod 000 "$KC000"; then
+    SWOUT="$(timeout 120 env STORAGE_WATCH_KUBECONFIG="$KC000" \
+                   STORAGE_WATCH_STATE="$(mktemp -u)" bash "$SW" 2>&1)"
+    if printf '%s' "$SWOUT" | grep -q "permission denied"; then
+      check 0 "unreadable kubeconfig -> probe names the cause (permission denied)"
+    else
+      check 1 "probe did not name the cause; alert was: $(printf '%s' "$SWOUT" | tr '\n' ' ' | cut -c1-160)"
+    fi
+    if printf '%s' "$SWOUT" | grep -q "kubeconfig=$KC000"; then
+      check 0 "probe names the kubeconfig it used"
+    else
+      check 1 "probe omitted the kubeconfig path, so the next reader cannot tell which file it read"
+    fi
+  else
+    check 1 "could not create a mode-000 copy of $KC in ${TMPDIR:-/tmp}"
+  fi
+  rm -f "$KC000"
+fi
+
 finish
