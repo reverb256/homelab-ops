@@ -17,6 +17,11 @@
 #      (baseline: scripts/verify/memlawb-undecryptable-baseline.json — 31 legacy
 #      entries written before 2026-08-21 with drifted writer parameters; they are
 #      skipped on recall and must never GROW)
+#   6. auth-aware read probes: the fleet server AND the URL the default profile
+#      is configured to use must answer /api/memory reads with HTTP 200
+#      (2026-10-13: a server that 401s every op still answers /health 200; and
+#      the root config had drifted to a dead server while profiles/* pointed at
+#      the live one — both classes now have probes)
 #
 # Usage: bash scripts/verify/memlawb-fleet-check.sh   (from anywhere; run on zephyr)
 set -u
@@ -31,6 +36,27 @@ case "$H" in
   *'"ok":true'*) ok "server health (:8080)";;
   *) bad "server health: $H";;
 esac
+
+# Auth-aware read probe (2026-10-13 incident: a server whose /health is 200 can
+# still 401 every memory op — "missing or invalid API key" — when it was started
+# without ALLOW_UNAUTHENTICATED=true. Health alone proves nothing.)
+A=$(curl -s -m 6 -o /dev/null -w '%{http_code}' "http://100.76.105.73:8080/api/memory/user:j_kro?view=hashes" || true)
+case "$A" in
+  200) ok "fleet server answers memory reads (HTTP 200)";;
+  *) bad "fleet server memory read probe: HTTP ${A:-none} (auth mis-config?)";;
+esac
+
+# Config-reality probe: the URL the DEFAULT profile is actually configured to
+# use must answer reads (the root config drifted to a dead server on 2026-10-06
+# while every profiles/*/config.yaml pointed at the live nexus server).
+CFG_URL=$(awk '/^memory:/{f=1} f&&/url:/{gsub(/.*url:[ ]*/,""); print; exit}' "$HOME/.hermes/config.yaml" 2>/dev/null)
+if [ -n "$CFG_URL" ]; then
+  C=$(curl -s -m 6 -o /dev/null -w '%{http_code}' "${CFG_URL%/}/api/memory/user:j_kro?view=hashes" || true)
+  case "$C" in
+    200) ok "default profile config URL answers reads (HTTP 200)";;
+    *) bad "default profile config URL ${CFG_URL}: HTTP ${C:-none}";;
+  esac
+fi
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 cat > "$TMP/memlawb_probe.py" <<'PYEOF'
