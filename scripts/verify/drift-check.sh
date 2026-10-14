@@ -28,6 +28,22 @@ OMARCHY="$ROOT/omarchy"
 SSH_OPTS="-n -o BatchMode=yes -o ConnectTimeout=8"
 emit() { printf '%-9s | %-22s | %-46s | %-52s | %s\n' "$1" "$2" "$3" "$4" "$5"; }
 
+# strip_doc_header — stdin -> stdout, dropping the leading comment header.
+#
+# Declaration files under omarchy/*/systemd/ and omarchy/*/etc/rancher/ carry
+# repo-only documentation ABOVE the unit content (e.g. the sentry k3s.service
+# hand-sync header, kanban t_e13e4db4). systemd parses none of it, and the
+# live host file never carries it — so a header edit shows up as "drifted"
+# forever, on exactly the file whose drift this check exists to catch. A
+# permanently-red check is an ignored check. Leading comments (lines matching
+# ^# or blank, from line 1 until the first real line) are documentation;
+# EVERYTHING after the first real line hashes as content, so a comment change
+# mid-file still counts as drift. The FULL-file hash is compared first; this
+# stripped hash is only consulted on mismatch.
+strip_doc_header() {
+  awk 'p{print} !p && $0 !~ /^#/ && $0 !~ /^[[:space:]]*$/ {p=1; print}'
+}
+
 # Committed path (relative to omarchy/<host>/) -> installed absolute path.
 # Derived from the `install_file` calls in each host's apply.sh.
 map_dst() {
@@ -95,9 +111,24 @@ for hostdir in "$OMARCHY"/*/; do
     elif [ "$want" = "$have" ]; then
       emit OK D9 in-sync "$host:$dst" "sha256 ${want:0:12}" "committed tree hash"
     else
-      emit FINDING D9 drifted "$host:$dst" "installed ${have:0:12} != committed ${want:0:12}" \
-        "installed content equals the committed tree"
-      drifted=$((drifted + 1))
+      # Mismatch on the full-file hash. Before failing, re-hash both sides
+      # with the repo-only leading comment header dropped (see
+      # strip_doc_header above): declaration files carry documentation the
+      # host copy never has. Only if the CONTENT still differs is it drift.
+      want_s="$(strip_doc_header < "$f" | sha256sum | cut -d' ' -f1)"
+      if [ "$local_host" = 1 ]; then
+        have_s="$(sudo cat "$dst" 2>/dev/null | strip_doc_header | sha256sum | cut -d' ' -f1)"
+      else
+        have_s="$(ssh $SSH_OPTS "$host" "sudo cat '$dst' 2>/dev/null" 2>/dev/null | strip_doc_header | sha256sum | cut -d' ' -f1)"
+      fi
+      if [ "$want_s" = "$have_s" ] && [ -n "$have_s" ]; then
+        emit OK D9 in-sync "$host:$dst" "content sha256 ${want_s:0:12} (repo-only doc header differs)" \
+          "installed content equals the committed tree"
+      else
+        emit FINDING D9 drifted "$host:$dst" "installed ${have:0:12} != committed ${want:0:12}" \
+          "installed content equals the committed tree"
+        drifted=$((drifted + 1))
+      fi
     fi
   done <<<"$files"
 done
