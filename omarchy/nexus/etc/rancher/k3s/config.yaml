@@ -18,14 +18,20 @@
 # down a genuine failure decision beyond the documented bound.
 #
 # Managed by homelab-ops/omarchy/<host> -- do not hand-edit on the host.
-# ---- IGNORED BY K3S (verified 2026-09-23) ----
-# The `etcd-arg` KEY BELOW DOES NOTHING. k3s warns "Unknown flag --etcd-arg found in
-# config.yaml, skipping" and the running etcd reports the defaults:
-#   forge: "heartbeat-interval":"500ms","election-timeout":"5s"
-# So the slow-fsync mitigation this block describes has never been applied - on the very
-# host it was written for. Put it on the unit's ExecStart as flags instead
-# (--etcd-arg=heartbeat-interval=250 --etcd-arg=election-timeout=2500) and verify the
-# intervals in the etcd startup log. See runbooks/k3s-rename-sentry-20260923/PLAN.md.
+# ---- HISTORY (2026-10-14, kanban t_e13e4db4) ----
+# This key was DEAD from 2026-09-22 to 2026-10-14: k3s skipped it with
+# "Unknown flag --etcd-arg found in config.yaml, skipping", and the running
+# etcd reported the defaults ("heartbeat-interval":"500ms","election-timeout":"5s").
+# The slow-fsync mitigation described above was NEVER applied via this file --
+# on the very host it was written for.
+# 2026-09-25..26: the mitigation moved to the k3s UNITS (each host unit's
+# ExecStart now carries --etcd-arg heartbeat-interval=250 / election-timeout=2500,
+# verified live 2026-10-14: nexus + forge + sentry raft logs all report
+# "heartbeat-interval":"250ms"). This file keeps the etcd-arg key ONLY as a
+# documented dead key: removing it would lose the record of what was tried
+# and why the units carry the flags now. Do NOT expect this key to work.
+# See runbooks/k3s-rename-sentry-20260923/PLAN.md and
+# runbooks/garage-k3s-etcd-key-missing-2026-10-05.md.
 etcd-arg:
   - heartbeat-interval=250
   - election-timeout=2500

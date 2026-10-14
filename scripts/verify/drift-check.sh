@@ -17,7 +17,15 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 OMARCHY="$ROOT/omarchy"
-SSH_OPTS="-o BatchMode=yes -o ConnectTimeout=8"
+# -n on EVERY ssh (2026-10-14, kanban t_e13e4db4): the per-file loop below reads
+# its file list from a here-string on stdin, and ssh attaches the SAME stdin,
+# drains it, and the loop ends after ONE file per remote host. sentry's whole
+# omarchy/ section (24 committed files, including the k3s unit declaration that
+# had drifted from the host unit this card exists for) was never hashed — the
+# section read "1 file, in-sync" and lied. Verified live: a 3-line list over an
+# ssh-ing loop yielded exactly 1 iteration before this fix, 3 after.
+# Regression test: tests/test-drift-check-remote-coverage.sh (positive + negative).
+SSH_OPTS="-n -o BatchMode=yes -o ConnectTimeout=8"
 emit() { printf '%-9s | %-22s | %-46s | %-52s | %s\n' "$1" "$2" "$3" "$4" "$5"; }
 
 # Committed path (relative to omarchy/<host>/) -> installed absolute path.
