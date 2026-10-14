@@ -23,6 +23,7 @@ SCRIPTS=(
   autonomy_audit.sh
   silent-failure-sweep.sh
   dns-drift.sh
+  k3s-kubeconfig-readable.sh
 )
 
 echo "verify/run_all.sh  host=$(hostname)  $(date '+%Y-%m-%d %H:%M:%S%z')"
