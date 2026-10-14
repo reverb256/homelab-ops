@@ -47,5 +47,22 @@ else
   no "per-file loop shape changed — re-verify the stdin fix against the new shape"
 fi
 
+# 3. strip_doc_header: leading comments are documentation, mid-file comments are
+#    content. A declaration whose only repo-vs-host difference is the doc header
+#    must read in-sync (sentry k3s.service, t_e13e4db4), while any content change
+#    after the first real line must still count as drift.
+strip_doc_header() {
+  awk 'p{print} !p && $0 !~ /^#/ && $0 !~ /^[[:space:]]*$/ {p=1; print}'
+}
+h1=$(printf '# doc header\n# more doc\n\n[Unit]\nDescription=real content\n' | strip_doc_header | sha256sum | cut -d' ' -f1)
+h2=$(printf '[Unit]\nDescription=real content\n' | strip_doc_header | sha256sum | cut -d' ' -f1)
+h3=$(printf '[Unit]\nDescription=CHANGED content\n' | strip_doc_header | sha256sum | cut -d' ' -f1)
+[ "$h1" = "$h2" ] && ok "leading doc header ignored (header-only diff = in-sync)" \
+  || no "leading doc header leaks into the content hash (permanently-red check returns)"
+[ "$h1" != "$h3" ] && ok "content change after header still drifts" \
+  || no "a real content change was masked as a header difference"
+grep -q "strip_doc_header" "$D" && ok "drift-check consults strip_doc_header on hash mismatch" \
+  || no "drift-check no longer uses strip_doc_header — the header rule rotted"
+
 echo
 if [ "$FAIL" = 0 ]; then echo "DRIFT-CHECK COVERAGE TEST PASS ($PASS)"; exit 0; else echo "DRIFT-CHECK COVERAGE TEST FAIL"; exit 1; fi
