@@ -8,6 +8,10 @@
 # reference (do not use): 51f28a54-2a7d-4fa1-aa16-2c38c1eb9a0b
 [Unit]
 Description=/data/nvme1 (arr config + stampede + jellyfin cache tier; on root @nvme1 since 2026-09-22)
+# jellyfin LEFT this tier 2026-10-14 (kanban t_d89cdac0): the live config moved to
+# sentry-agent with the VAAPI move (t_03de36be) and the stale nexus tree + its bind
+# mount (data-media-config-jellyfin.mount, deleted same day) were removed after the
+# sentry-side weekly backup completed a full verified cycle.
 Documentation=https://github.com/reverb256/homelab-ops
 
 [Mount]
