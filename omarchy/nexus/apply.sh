@@ -149,6 +149,18 @@ for u in "$REPO_DIR"/systemd/*.service "$REPO_DIR"/systemd/*.timer; do
   install_file "$u" "/etc/systemd/system/$(basename "$u")"
 done
 
+# systemd DROP-INS (e.g. k3s.service.d/30-etcd-fasttier.conf): installed under
+# their unit's .d directory, not at /etc/systemd/system top level. Before this
+# loop the fast-tier drop-in sat at systemd/ top level, which the *.service /
+# *.timer globs above never picked up — committed but never deployable, and
+# drift-check mapped it to /etc/systemd/system/30-etcd-fasttier.conf (a path
+# that does not exist) so D9 reported the WRONG "installed-missing". A component
+# in git must be enough to deploy it. (kanban t_e13e4db4, 2026-10-14)
+for d in "$REPO_DIR"/systemd/*.service.d/*.conf; do
+  [[ -f "$d" ]] || continue
+  install_file "$d" "/etc/systemd/system/${d#"$REPO_DIR"/systemd/}"
+done
+
 install_file "$REPO_DIR/garage-buckets.tsv" /etc/garage-buckets.tsv
 
 # tmpfiles.d: /tmp is a 24G tmpfs (RAM). It hit 82% from abandoned build

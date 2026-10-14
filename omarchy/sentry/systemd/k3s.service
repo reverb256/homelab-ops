@@ -6,82 +6,141 @@
 # every backup looked healthy (kanban t_e13e4db4; see
 # runbooks/garage-k3s-etcd-key-missing-2026-10-05.md).
 #
+# 2026-10-14 sync (kanban t_e13e4db4): this copy had drifted to the pre-fix nexus/forge
+# style unit, while the host unit was rewritten 2026-10-05 (env-file credentials) and
+# 2026-09-25 (packaged unit style + --etcd-arg heartbeat/election flags on ExecStart).
+# drift-check D9 could not see the drift (ssh ate the loop's stdin — fixed the same day),
+# so the declaration went stale silently. This file is now a byte-exact copy of the
+# live unit; re-copy on every hand edit and keep this header above it.
+#
 # The etcd snapshot credentials come from /etc/systemd/system/k3s.service.env
 # (K3S_ETCD_S3_KEY / K3S_ETCD_S3_SECRET, mode 0600) — the same mechanism nexus and
 # forge use. Key MATERIAL is deliberately never committed here; before 2026-10-05 this
 # file carried the plaintext key, which is how it survived as a dead id after the
 # 2026-09-20 garage rebuild dropped the key it named.
 [Unit]
-Description=k3s server (join nexus)
-After=network-online.target
+Description=Lightweight Kubernetes
+Documentation=https://k3s.io
 Wants=network-online.target
-StartLimitBurst=3
-StartLimitIntervalSec=5min
-
-[Service]
-Type=simple
-EnvironmentFile=-/etc/default/%N
-EnvironmentFile=-/etc/sysconfig/%N
-EnvironmentFile=-/etc/systemd/system/k3s.service.env
-Environment="CONTAINERD_NRI_DISABLED=1"
-ExecStart=/usr/local/bin/k3s server \
-  --server=https://10.1.1.120:6443 \
-  --token-file /var/lib/rancher/k3s/server/token \
-  --node-name=sentry-agent \
-  --node-ip=10.1.1.140 \
-  --data-dir=/var/lib/rancher/k3s \
-  --cluster-cidr=10.42.0.0/16 \
-  --service-cidr=10.43.0.0/16 \
-  --cluster-dns=10.43.0.10 \
-  --write-kubeconfig-mode=644 \
-  --disable=traefik \
-  --disable=metrics-server \
-  --disable=servicelb \
-  --flannel-backend=none \
-  --tls-san=10.1.1.100 \
-  --tls-san=10.1.1.110 \
-  --tls-san=10.1.1.120 \
-  --tls-san=10.1.1.130 \
-  --tls-san=10.1.1.140 \
-  --tls-san=nexus \
-  --tls-san=forge \
-  --tls-san=sentry \
-  --tls-san=cluster.local \
-  --tls-san=localhost \
-  --tls-san=127.0.0.1 \
-# 2026-09-15: RE-ENABLED — encryption restored cluster-wide (aescbc, same key as nexus/forge).
-  --kube-apiserver-arg=encryption-provider-config=/var/lib/rancher/k3s/server/cred/encryption-config.yaml  \
-  --kube-apiserver-arg=audit-policy-file=/var/lib/rancher/k3s/server/audit-policy.yaml \
-  --kube-apiserver-arg=audit-log-path=/var/lib/rancher/k3s/server/logs/audit.log \
-  --kube-apiserver-arg=audit-log-format=json \
-  --kube-apiserver-arg=audit-log-maxage=7 \
-  --kube-apiserver-arg=audit-log-maxsize=100 \
-  --kube-apiserver-arg=audit-log-maxbackup=10 \
-  --etcd-arg=auto-compaction-mode=periodic \
-  --etcd-arg=auto-compaction-retention=5m \
-  --etcd-snapshot-retention=10 \
-  --etcd-snapshot-compress \
-  --etcd-expose-metrics \
-  --etcd-snapshot-schedule-cron="0 */6 * * *" \
-  --etcd-s3 \
-  --etcd-s3-endpoint=100.76.105.73:3900 \
-  --etcd-s3-region=garage \
-  --etcd-s3-bucket=k3s-etcd \
-  --etcd-s3-access-key=${K3S_ETCD_S3_KEY} \
-  --etcd-s3-secret-key=${K3S_ETCD_S3_SECRET} \
-  --etcd-s3-insecure \
-  --etcd-s3-skip-ssl-verify \
-  --kube-controller-manager-arg=terminated-pod-gc-threshold=500 \
-  --kube-controller-manager-arg=node-monitor-grace-period=40s \
-  --disable-network-policy \
-  --kubelet-arg=authentication-token-webhook=true \
-  --kubelet-arg=node-status-update-frequency=10s \
-  --kubelet-arg=authorization-mode=Webhook
-ExecReload=/bin/kill -s HUP $MAINPID
-TimeoutStartSec=0
-Restart=on-failure
-RestartSec=5
-KillMode=process
+After=network-online.target
 
 [Install]
 WantedBy=multi-user.target
+
+[Service]
+Type=notify
+EnvironmentFile=-/etc/default/%N
+EnvironmentFile=-/etc/sysconfig/%N
+EnvironmentFile=-/etc/systemd/system/k3s.service.env
+KillMode=process
+Delegate=yes
+User=root
+LimitNOFILE=1048576
+LimitNPROC=infinity
+LimitCORE=infinity
+TasksMax=infinity
+TimeoutStartSec=0
+Restart=always
+RestartSec=5s
+ExecStartPre=-/sbin/modprobe br_netfilter
+ExecStartPre=-/sbin/modprobe overlay
+ExecStart=/usr/local/bin/k3s \
+	'server' \
+	'--etcd-arg' \
+	'heartbeat-interval=250' \
+	'--etcd-arg' \
+	'election-timeout=2500' \
+	'--server' \
+	'https://10.1.1.120:6443' \
+	'--token-file' \
+	'/var/lib/rancher/k3s/server/token' \
+	'--node-name' \
+	'sentry-agent' \
+	'--node-ip' \
+	'10.1.1.140' \
+	'--data-dir' \
+	'/var/lib/rancher/k3s' \
+	'--cluster-cidr' \
+	'10.42.0.0/16' \
+	'--service-cidr' \
+	'10.43.0.0/16' \
+	'--cluster-dns' \
+	'10.43.0.10' \
+	'--write-kubeconfig-mode' \
+	'644' \
+	'--disable' \
+	'traefik' \
+	'--disable' \
+	'metrics-server' \
+	'--disable' \
+	'servicelb' \
+	'--flannel-backend' \
+	'none' \
+	'--tls-san' \
+	'10.1.1.100' \
+	'--tls-san' \
+	'10.1.1.110' \
+	'--tls-san' \
+	'10.1.1.120' \
+	'--tls-san' \
+	'10.1.1.130' \
+	'--tls-san' \
+	'10.1.1.140' \
+	'--tls-san' \
+	'nexus' \
+	'--tls-san' \
+	'forge' \
+	'--tls-san' \
+	'sentry' \
+	'--tls-san' \
+	'cluster.local' \
+	'--tls-san' \
+	'localhost' \
+	'--tls-san' \
+	'127.0.0.1' \
+	'--kube-apiserver-arg' \
+	'encryption-provider-config=/var/lib/rancher/k3s/server/cred/encryption-config.yaml' \
+	'--kube-apiserver-arg' \
+	'audit-policy-file=/var/lib/rancher/k3s/server/audit-policy.yaml' \
+	'--kube-apiserver-arg' \
+	'audit-log-path=/var/lib/rancher/k3s/server/logs/audit.log' \
+	'--kube-apiserver-arg' \
+	'audit-log-format=json' \
+	'--kube-apiserver-arg' \
+	'audit-log-maxage=7' \
+	'--kube-apiserver-arg' \
+	'audit-log-maxsize=100' \
+	'--kube-apiserver-arg' \
+	'audit-log-maxbackup=10' \
+	'--etcd-arg' \
+	'auto-compaction-mode=periodic' \
+	'--etcd-arg' \
+	'auto-compaction-retention=5m' \
+	'--etcd-snapshot-retention' \
+	'10' \
+	'--etcd-snapshot-compress' \
+	'--etcd-expose-metrics' \
+	'--etcd-snapshot-schedule-cron' \
+	'0 */6 * * *' \
+	'--etcd-s3' \
+	'--etcd-s3-endpoint' \
+	'100.76.105.73:3900' \
+	'--etcd-s3-region' \
+	'garage' \
+	'--etcd-s3-bucket' \
+	'k3s-etcd' \
+	--etcd-s3-access-key=${K3S_ETCD_S3_KEY} \
+	--etcd-s3-secret-key=${K3S_ETCD_S3_SECRET} \
+	'--etcd-s3-insecure' \
+	'--etcd-s3-skip-ssl-verify' \
+	'--kube-controller-manager-arg' \
+	'terminated-pod-gc-threshold=500' \
+	'--kube-controller-manager-arg' \
+	'node-monitor-grace-period=40s' \
+	'--disable-network-policy' \
+	'--kubelet-arg' \
+	'authentication-token-webhook=true' \
+	'--kubelet-arg' \
+	'node-status-update-frequency=10s' \
+	'--kubelet-arg' \
+	'authorization-mode=Webhook'

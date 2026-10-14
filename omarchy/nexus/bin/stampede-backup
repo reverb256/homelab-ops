@@ -100,8 +100,12 @@ sync_with_retry "$SNAP/stampede-data/" "s3://$BUCKET/current/" || die "upload fa
 # ── snapshot copy: SERVER-SIDE, so 40G is not read off disk a second time ──
 snap_copy_with_retry(){
   local attempt sleep_s
-  for attempt in $(seq 1 15); do
-    if aws --endpoint-url "$ENDPOINT" s3 cp --recursive \
+  # Bounded deliberately: a 68G object cannot be server-side copied (S3
+  # copy-object caps at 5GiB), so every attempt fails slowly AND leaks an
+  # unfinished multipart upload (123.4G had accumulated). The 15-attempt retry
+  # storm overran TimeoutStartSec=6h, so the unit never reached pruning.
+  for attempt in $(seq 1 2); do
+    if timeout 900 aws --endpoint-url "$ENDPOINT" s3 cp --recursive \
          "s3://$BUCKET/current/" "s3://$BUCKET/snapshots/$STAMP/" \
          --exclude 'history.sqlite*' \
          --only-show-errors --no-progress >/dev/null 2>&1; then
