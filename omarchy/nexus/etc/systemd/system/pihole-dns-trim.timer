@@ -1,0 +1,11 @@
+[Unit]
+# Runs pihole-dns-trim.service every 30s (see that unit for the why).
+Description=Re-trim tailscale0 routing domains every 30s
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=30s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

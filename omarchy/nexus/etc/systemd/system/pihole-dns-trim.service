@@ -1,0 +1,18 @@
+[Unit]
+# Trim MagicDNS's default-route claim on this host's tailscale0 link
+# (t_d47a5575, outcome E). tailscaled (CorpDNS=true) registers routing
+# domains "tigris-ule.ts.net lan ~."; the trailing ~. spreads ordinary
+# queries across all default-route links, so a fraction of host lookups go
+# to MagicDNS (100.100.100.100) and BYPASS Pi-hole. ts.net + lan stay (MagicDNS
+# still answers tailnet names); ~. goes so the global triad
+# (pihole .53 / unbound .100 / unbound .120) owns default-route resolution.
+# A oneshot + timer because tailscaled re-asserts its config not only on its
+# own restart but also whenever systemd-resolved restarts — an ExecStartPost
+# on either unit misses those moments. The trim is idempotent and takes <1s.
+# Always exits 0: a DNS-domain trim must never surface as a failed unit.
+Description=Trim tailscale0 routing domains to ts.net+lan (keep pihole the default route)
+After=network-online.target tailscaled.service systemd-resolved.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'for i in $(seq 1 5); do resolvectl domain tailscale0 "tigris-ule.ts.net" "lan" >/dev/null 2>&1 && exit 0; sleep 2; done; exit 0'
