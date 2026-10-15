@@ -11,7 +11,12 @@
 #   bash scripts/verify/k3s-resolv-conf.sh
 set -uo pipefail
 export KUBECONFIG="${KUBECONFIG:-/home/j_kro/.kube/config}"
-EXPECT_NS="${EXPECT_NS:-10.43.77.126}"     # pihole-dns ClusterIP (reachable from pods)
+EXPECT_NS="${EXPECT_NS:-10.43.77.126 10.1.1.100 10.1.1.120}"
+# ^ pihole-dns ClusterIP FIRST (reachable from every pod, keeps filtering),
+#   then the unbound pair as LIVE secondaries (t_d47a5575, outcome E — pods
+#   are clients too). Measured 2026-10-15: during a full pihole cold start
+#   (~8 min) pods were DNS-blind with the ClusterIP alone; glibc falls
+#   through to the unbound pair, degrading to UNFILTERED, never to no DNS.
 EXPECT_PATH="${EXPECT_PATH:-/etc/rancher/k3s/resolv.conf}"
 CANARY="${CANARY:-doubleclick.net}"        # Pi-hole blocks this -> 0.0.0.0 from Pi-hole
 HOSTS="nexus forge sentry zephyr"
