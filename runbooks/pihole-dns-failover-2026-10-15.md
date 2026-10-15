@@ -46,6 +46,27 @@ hand-edit /etc/systemd/resolved.conf or NM profiles there — run
 drop-in. A DNS= list in a drop-in fights the tool (main-file entries
 accumulate AHEAD of drop-ins — measured).
 
+## The pod layer (kubelet resolv.conf) — a measured tradeoff
+
+Pods and CoreDNS resolve via the kubelet resolv.conf (see the managed file's
+header for the wiring). It is now the same triad:
+`10.43.77.126` (pihole ClusterIP, first) + `10.1.1.100` + `10.1.1.120`.
+
+TRADEOFF (measured 2026-10-15, 20 probes against kube-dns while pihole was
+UP): CoreDNS's `forward` plugin picks its resolv.conf upstreams RANDOMLY, so
+pod-layer filtering is ~55% (11/20 blocked) rather than 100% — but pod-layer
+AVAILABILITY is 100% during a pihole outage (previously: ~8 min of total
+DNS blindness while pods held a single dead ClusterIP). The incident card's
+priority is explicit — "we cannot have that going down or becoming
+unavailable" — and pods do not browse ads. Do NOT try to restore 100% pod
+filtering by removing the secondaries; that re-arms the outage class.
+
+After editing the kubelet resolv.conf: restart k3s per host
+(scripts/apply-k3s-resolv-conf.sh, one at a time) AND delete the kube-dns
+pods — CoreDNS reads /etc/resolv.conf at ITS pod creation, so existing
+replicas keep the old upstream until recreated (the managed file's header
+documents this; forgotten once, measured twice).
+
 ## The MagicDNS trim (nexus + sentry)
 
 tailscaled with CorpDNS=true registers tailscale0 with routing domains
