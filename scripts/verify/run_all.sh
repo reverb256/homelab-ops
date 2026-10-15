@@ -24,6 +24,9 @@ SCRIPTS=(
   silent-failure-sweep.sh
   dns-drift.sh
   k3s-kubeconfig-readable.sh
+  pihole-dns-deadlock.sh
+  cron-sentinel-lane.sh
+  feed-path-live.sh
 )
 
 echo "verify/run_all.sh  host=$(hostname)  $(date '+%Y-%m-%d %H:%M:%S%z')"
