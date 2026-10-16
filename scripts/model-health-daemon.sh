@@ -618,10 +618,19 @@ for prov in saturated:
         tp, tm, jdeg = jt
         tag = "DEGRADED TARGET " if jdeg else ""
         if LIVE:
+            # HERMES_HOME is pinned here on purpose. This script may be invoked from
+            # a PROFILE shell (HERMES_HOME=~/.hermes/profiles/<p>), and `hermes cron
+            # edit` would then read THAT profile's job store instead of the root one
+            # this loop just read from disk. Measured 2026-10-16: "Job not found:
+            # ee4af9b4d0fb" (stack-sentinel, pinned to opencode-go) so the job stayed
+            # on the dead provider.
             r = subprocess.run(["hermes", "cron", "edit", j["id"], "--provider", tp, "--model", tm],
-                               capture_output=True, text=True, timeout=60)
+                               capture_output=True, text=True, timeout=60,
+                               env=dict(os.environ, HERMES_HOME=f"{HOME}/.hermes"))
             okp = r.returncode == 0
-            actions.append((f"{tag}CRON REPINNED " if okp else "!! repin FAILED ") + f"{j.get('name')} -> {tp}/{tm}")
+            err = "" if okp else (r.stderr or r.stdout or "").strip().replace("\n", " ")[:120]
+            actions.append((f"{tag}CRON REPINNED " if okp else f"!! repin FAILED ({err}) ")
+                           + f"{j.get('name')} -> {tp}/{tm}")
         else:
             actions.append(f"WOULD REPIN {j.get('name')} -> {tp}/{tm}")
 
