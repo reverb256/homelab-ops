@@ -1,11 +1,54 @@
+# /etc/systemd/system/var-lib-rancher-k3s-server-db-etcd.mount
+# Managed by homelab-ops/omarchy/nexus — do not hand-edit on the host.
+#
+# k3s etcd on the fast tier (EVO). Since 2026-09-24: the fix for the quorum loss
+# where nexus etcd stalled 11 min on the LUKS2+SN550 root and k3s self-killed.
+# The companion drop-in is k3s.service.d/30-etcd-fasttier.conf (RequiresMountsFor
+# this path, so k3s never starts against an unmounted — empty — etcd).
+# See README-etcd-fasttier.md.
+#
+# ORDERING — 2026-10-16 incident, read before you touch this header.
+#   This unit used to be `After=local-fs.target` AND `[Install]
+#   WantedBy=local-fs.target`. A .mount with default dependencies ALREADY gets an
+#   implicit `Before=local-fs.target`, so the explicit After= closed an
+#   unsatisfiable 2-node cycle (mount after target, mount wanted by target).
+#   systemd resolves such a cycle by DELETING the mount's start job, so
+#   /var/lib/rancher/k3s/server/db/etcd was never mounted and k3s.service — which
+#   requires it — was silently never started. The node simply vanished from the
+#   cluster until a human noticed:
+#     journalctl -b  -> "local-fs.target: Found ordering cycle:
+#       var-lib-rancher-k3s-server-db-etcd.mount/start after local-fs.target/start
+#       ... Job var-lib-rancher-k3s-server-db-etcd.mount/start deleted to break
+#       ordering cycle starting with local-fs.target/start"   (boot 15:02:08)
+#     systemctl show k3s -p ActiveEnterTimestamp -> 15:05:58 (a MANUAL
+#       `systemctl start k3s`; NRestarts=0, node NotReady 15:01-15:05).
+#   The boot "succeeded": nothing failed, nothing alerted.
+#
+#   The ordering below mirrors var-lib-rancher-k3s-agent-containerd.mount — same
+#   /data/fast bind-mount shape, and it mounted correctly in that same boot
+#   transaction: DefaultDependencies=no, ordered after its source mount and before
+#   k3s, pulled in by local-fs.target with NO ordering against it.
+#   Do NOT add `After=local-fs.target` back, and do not "simplify" this by
+#   restoring default dependencies plus After= — that is the cycle.
+#
+# Regression check: scripts/verify/k3s-boot-units.sh (also wired into the fleet
+# suite as verify-fleet.sh §9ae). It reproduces the cycle WITHOUT a reboot via
+# `systemd-analyze verify <unit> local-fs.target` and asserts WantedBy ∩ After
+# is empty, so this defect cannot come back silently. (kanban t_8aebe4fa)
+
 [Unit]
 Description=k3s etcd data on the fast tier (EVO)
+Documentation=https://github.com/reverb256/homelab-ops
+DefaultDependencies=no
 RequiresMountsFor=/data/fast
-After=local-fs.target
+After=data-fast.mount
+Before=k3s.service
+
 [Mount]
 What=/data/fast/k3s/etcd
 Where=/var/lib/rancher/k3s/server/db/etcd
 Type=none
 Options=bind
+
 [Install]
 WantedBy=local-fs.target

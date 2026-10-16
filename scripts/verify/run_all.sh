@@ -24,6 +24,7 @@ SCRIPTS=(
   silent-failure-sweep.sh
   dns-drift.sh
   k3s-kubeconfig-readable.sh
+  k3s-boot-units.sh
   pihole-dns-deadlock.sh
   cron-sentinel-lane.sh
   feed-path-live.sh
