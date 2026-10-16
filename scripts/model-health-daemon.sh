@@ -1,5 +1,29 @@
 #!/bin/bash
-# model-health-daemon.sh v2 — self-healing model/provider rotation.
+# model-health-daemon.sh v3 (2026-10-16) — self-healing model/provider rotation.
+#
+# v3 (card t_7d75bafd): the probe map, the rotation pool and the dead-provider list
+# are now DATA from `scripts/fleet-routing.json` (the fleet routing spec — the
+# source of record, verified by `fleet-route.py probe`), not literals in this file
+# that rot. v2 shipped three defects that made this daemon the reason a fixed fleet
+# went BACK to the dead primary:
+#   * its `nous` probe used meituan/longcat-2.0:free and its `openrouter-free`
+#     probe nvidia/nemotron-3-ultra-550b-a55b:free — both 404 — so two HEALTHY
+#     providers were reported SATURATED on every tick ("probe: bad body: None");
+#   * its rotation pool then offered opencode-go/deepseek-v4.1-flash, the one
+#     provider whose probe passes HERE (this probe sends the required
+#     x-opencode-session header; the agent path does not) while its real answer is
+#     HTTP 400 MissingSessionID. Measured 17:00:57 and 17:10:56 on 2026-10-16:
+#     "ROTATED profile reviewer -> opencode-go/deepseek-v4.1-flash", twice, over a
+#     fix that had landed minutes earlier — and again at 18:40:57, over 20 profiles
+#     re-pointed at 18:37;
+#   * the rotation rewrote model.provider + model.default and LEFT model.base_url
+#     alone, so a rotated profile kept calling the OLD host. Live state it left
+#     behind: provider opencode-go with base_url
+#     https://inference-api.nousresearch.com/v1.
+# It also now rotates consumers OFF a provider the spec lists as dead (a probe is
+# not evidence there: this probe answers 200 on opencode-go while the agent path
+# gets 400), and it will not move a panel judge (spec `judge_family`) to another
+# model family.
 #
 # v2 improvements (2026-09-19), benchmarked against LiteLLM Router + gateway patterns:
 #  - per-error-class thresholds (auth 2 / quota 2 / rate 8 / timeout 5 per window)
@@ -99,32 +123,92 @@ def active_auth(prov):
     return (t > now - AUTH_TTL), int(now - t)
 
 
-# ---- probe map: provider -> (url, model, key env(s)) ----
+# ---- probe map + rotation pool: DATA from the fleet routing spec ----
+# v3 (2026-10-16, card t_7d75bafd). Both maps used to be literals here, and both
+# rotted while the fleet ran on live traffic:
+#
+#   * the probe for `nous` used meituan/longcat-2.0:free and for `openrouter-free`
+#     nvidia/nemotron-3-ultra-550b-a55b:free — both dead (404). Measured
+#     2026-10-16: both providers were reported SATURATED on EVERY tick, "probe:
+#     bad body: None", while answering real turns fine (nous answered a JSON
+#     judge call in 1.3-4.0 s, 3/3);
+#   * POOL then offered opencode-go/deepseek-v4.1-flash as the rotation target —
+#     the ONE provider whose probe PASSES here (this probe sends the required
+#     x-opencode-session header; the agent path does not) and whose real API
+#     answer is HTTP 400 MissingSessionID. So the "self-healing" rotator drove
+#     every nous/openrouter-free profile ONTO the dead provider: it logged
+#     "ROTATED profile reviewer -> opencode-go/deepseek-v4.1-flash" at 17:00:57
+#     and again at 17:10:56, and 20 profiles at 18:40:57, over fixes that had
+#     landed minutes earlier. The cron output is
+#     ~/.hermes/cron/output/292b321c453a/.
+#
+# The spec is now the source of record: scripts/fleet-routing.json next to
+# fleet-route.py carries providers (base_url + api_key_env + the probe model),
+# dead_providers, dead_slugs and rotation_pool. `fleet-route.py probe` verifies
+# the same set on a schedule. The literals below are only a fallback for a host
+# without the checkout, and they hold the slugs measured live on 2026-10-16.
+SPEC_PATH = os.environ.get("MODEL_HEALTH_SPEC", f"{HOME}/ai-content-pipeline/scripts/fleet-routing.json")
+try:
+    SPEC = json.load(open(SPEC_PATH))
+except Exception:
+    SPEC = {}
+
 # NOTE: opencode-zen removed — its free tier answers "FreeTierError: ... can only be
 # used from within OpenCode" to plain API calls, so it is not a probeable/rotatable target.
 PROBES = {
-  "opencode-go":     ("https://opencode.ai/zen/go/v1/chat/completions", "deepseek-flash", ("OPENCODE_GO_API_KEY", "OPENCODE_API_KEY")),
-  "openrouter-free": ("https://openrouter.ai/api/v1/chat/completions", "nvidia/nemotron-3-ultra-550b-a55b:free", ("OPENROUTER_API_KEY",)),
-  "nous":            ("https://inference-api.nousresearch.com/v1/chat/completions", "meituan/longcat-2.0:free", ("NOUS_API_KEY",)),
+  "opencode-go":     ("https://opencode.ai/zen/go/v1/chat/completions", "deepseek-v4.1-flash", ("OPENCODE_GO_API_KEY", "OPENCODE_API_KEY")),
+  "openrouter-free": ("https://openrouter.ai/api/v1/chat/completions", "nvidia/nemotron-3-super-120b-a12b:free", ("OPENROUTER_API_KEY",)),
+  "nous":            ("https://inference-api.nousresearch.com/v1/chat/completions", "poolside/laguna-s-2.1:free", ("NOUS_API_KEY",)),
   "nvidia":          ("https://integrate.api.nvidia.com/v1/chat/completions", "nvidia/nemotron-3-super-120b-a12b", ("NVIDIA_API_KEY",)),
   "kilo":            ("https://api.kilo.ai/api/gateway/chat/completions", "kilo-auto/free", ("KILOCODE_API_KEY",)),
 }
-# rotation targets — VERIFIED LIVE 2026-09-19 (each passed a body-validating probe).
-# (minimax/minimax-m3:free was removed: no longer available for free — 404.)
-POOL = [
-  ("openrouter-free", "nvidia/nemotron-3-ultra-550b-a55b:free"),
-  ("openrouter-free", "inclusionai/ling-3.0-flash-fin:free"),
-  ("nous", "meituan/longcat-2.0:free"),
-  ("opencode-go", "deepseek-v4.1-flash"),
-  ("nvidia", "z-ai/glm-5.3"),
-]
+for _p, _d in (SPEC.get("providers") or {}).items():
+    _base, _model, _key = _d.get("base_url"), _d.get("model"), _d.get("api_key_env")
+    if _base and _model and _key:
+        PROBES[_p] = (_base.rstrip("/") + "/chat/completions", _model, (_key,))
+# base_url per provider, so a rotation moves the ENDPOINT with the provider.
+PROVIDER_BASE = {p: d.get("base_url") for p, d in (SPEC.get("providers") or {}).items()
+                 if d.get("base_url")}
+
+# rotation targets, best first. Every entry must be a provider that ANSWERS a
+# body-validating probe; the loop below probes each candidate before it is used.
+POOL = [(x["provider"], x["model"]) for x in (SPEC.get("rotation_pool") or [])
+        if isinstance(x, dict) and x.get("provider") and x.get("model")]
+if not POOL:
+    POOL = [
+      ("kilo", "kilo-auto/free"),
+      ("nous", "poolside/laguna-s-2.1:free"),
+      ("nvidia", "z-ai/glm-5.3"),
+      ("nous", "poolside/laguna-xs-2.1:free"),
+    ]
+# Providers that cannot serve an API caller at all. Consumers are rotated OFF
+# these on sight, whatever the error window says — a dead primary costs the first
+# call of every session.
+DEAD = set(SPEC.get("dead_providers") or []) or {"opencode-go", "opencode-zen"}
+# Slugs the spec measured dead. A rotation target must not be one of them: this
+# probe validates a PROVIDER, so a pool entry carrying a dead slug would be picked
+# on the strength of its provider alone (measured trap: pool entry
+# opencode-go/deepseek-v4.1-flash passed here while every agent call 400'd).
+DEAD_SLUGS = set(SPEC.get("dead_slugs") or [])
+# Profiles whose routing is a CONTRACT with another lane: the music review panel
+# needs three DISJOINT model families (music/rubrics/README.md, enforced by
+# music/scripts/check_panel_membership.py). This daemon may heal a dead primary
+# for such a profile, but only with a target from the SAME family.
+PINS = {n: (v.get("judge_family") or "")
+        for n, v in (SPEC.get("profiles") or {}).items() if v.get("judge_family")}
 SNAPSHOT_MAP = {
   "deepseek-v4.1-flash": "opencode-go",
   "poolside/laguna-s-2.1:free": "nous",
-  "minimax/minimax-m3:free": "openrouter-free",
+  "poolside/laguna-xs-2.1:free": "nous",
+  "reflection/beam-1.0-501b-a23b:free": "nous",
+  "nvidia/nemotron-3-super-120b-a12b": "nvidia",
+  "nvidia/nemotron-3-super-120b-a12b:free": "nvidia",
+  "z-ai/glm-5.3": "nvidia",
+  "kilo-auto/free": "kilo",
+  "dots-studio/dots-3-note-preview:free": "kilo",
+  "meituan/longcat-2.0:free": "nous",
   "nvidia/nemotron-3-ultra-550b-a55b:free": "openrouter-free",
   "inclusionai/ling-3.0-flash-fin:free": "openrouter-free",
-  "meituan/longcat-2.0:free": "nous",
 }
 
 def env_key(names):
@@ -249,22 +333,35 @@ def probe(p):
     key = env_key(keyenv)
     if not key:
         return False, "missing key"
-    body = json.dumps({"model": model, "messages": [{"role": "user", "content": "reply with the single word: ok"}], "max_tokens": 64})
-    cmd = [CURL, "-s", "-m", "15", url,
+    # max_tokens 256, not 64 (card t_7d75bafd). A reasoning model spends its
+    # budget on reasoning FIRST. Measured 2026-10-16: nvidia nemotron-3-super
+    # answers {"content": null, "reasoning_content": "..."} at max_tokens=64
+    # (finish_reason=length, 64/64 reasoning tokens) and real JSON content at 800
+    # — so a 64-token probe reported a HEALTHY provider as SATURATED and handed
+    # its profiles to the rotator. Also: the reasoning key is `reasoning_content`
+    # on NIM and `reasoning` on nous; reading only `reasoning` sees neither.
+    body = json.dumps({"model": model, "messages": [{"role": "user", "content": "reply with the single word: ok"}], "max_tokens": 256})
+    # -m 45, not 15: a reasoning model at 256 tokens can take ~20 s (measured:
+    # z-ai/glm-5.3 on NIM, 19.3 s for 380 completion tokens on 2026-10-16). A
+    # 15 s cap makes a SLOW provider look DEAD, which is the same false
+    # saturation this probe exists to stop reporting.
+    cmd = [CURL, "-s", "-m", "45", url,
            "-H", f"Authorization: Bearer {key}",
            "-H", "Content-Type: application/json", "-d", body]
     if "opencode.ai" in url:
         # required by the OpenCode relay; mirrors agent/opencode_affinity.py
         cmd[4:4] = ["-H", "x-opencode-session: hermes-health-probe"]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         data = json.loads(r.stdout)
     except Exception:
         return False, "probe transport error"
     try:
         msg = data["choices"][0]["message"]
         content = (msg.get("content") or "").strip()
-        reasoning = (msg.get("reasoning") or "").strip()
+        # `reasoning` (nous) or `reasoning_content` (nvidia NIM). Reading only
+        # `reasoning` made every NIM reasoning model look EMPTY (card t_7d75bafd).
+        reasoning = (msg.get("reasoning") or msg.get("reasoning_content") or "").strip()
         return (True, "ok") if (content or reasoning) else (False, "empty content")
     except Exception:
         detail = ""
@@ -349,29 +446,122 @@ for p in sorted(providers):
         saturated.append(p)
         actions.append(f"{p}: SATURATED (probe: {detail}) -> cooldown tier {newtier}, {dur // 60}m{' [DRY-RUN]' if not LIVE else ''}")
 
-for prov in saturated:
-    target = None
+# ---- 4c. a provider the SPEC lists as dead: rotate consumers OFF it ----
+# This is the repair the fleet needed on 2026-10-16 and the daemon never made: v2
+# only ever rotated when the ERROR WINDOW tripped, and its POOL pointed BACK at
+# the dead provider, so profiles stayed on opencode-go (HTTP 400 MissingSessionID)
+# indefinitely while the rotator reported healthy operation.
+#
+# The list is DATA (`dead_providers` in the spec), not this probe's opinion — and
+# that matters, because this probe CANNOT see the defect: it sends the required
+# x-opencode-session header (mirroring agent/opencode_affinity.py) while the
+# agent's own path does not. Measured 2026-10-16: the probe answers 200 here and
+# the agent answers HTTP 400 MissingSessionID on the same provider, so a green
+# probe is not evidence of a usable provider. A spec-dead provider is rotated off
+# on sight, and the disagreement is logged.
+for prov in sorted(DEAD):
+    if prov in saturated or prov in auth_flagged:
+        continue
+    ok, detail = probe(prov)
+    if ok is None:
+        actions.append(f"{prov}: listed DEAD in the spec and not probeable ({detail}) "
+                       f"-> rotating consumers off it")
+    elif ok:
+        actions.append(f"{prov}: listed DEAD in the spec but this probe ANSWERS — the probe "
+                       f"sends x-opencode-session and the agent path does not, so this is not "
+                       f"evidence the provider is usable -> rotating consumers off it")
+    else:
+        actions.append(f"{prov}: DEAD for API callers (probe: {detail}) -> rotating consumers off it")
+    saturated.append(prov)
+
+
+def family_of(model):
+    return (model or "").split("/")[0].strip().lower()
+
+
+_TARGETS = {}
+
+
+def pick_target(prov, pin):
+    """(provider, model, degraded) to move a consumer of `prov` onto, or None.
+
+    `pin` is a model FAMILY. When it is set, the consumer's routing is a contract
+    with another lane (the reviewer* profiles — the music review panel needs three
+    DISJOINT families, music/rubrics/README.md), so only a SAME-FAMILY target may
+    be used: a repair must never collide two sibling judges.
+    """
+    ck = (prov, pin)
+    if ck in _TARGETS:
+        return _TARGETS[ck]
+    chosen = None
     for tp, tm in POOL:
-        if tp == prov:
+        if tp == prov or tp in DEAD or tm in DEAD_SLUGS:
+            continue
+        if pin and family_of(tm) != pin:
             continue
         t_tier, t_until = read_marker(tp)
         if t_tier and t_until > now:
             continue
         ok, _ = probe(tp)
         if ok:
-            target = (tp, tm)
+            chosen = (tp, tm, False)
             break
-    degraded = False
-    if not target:
-        cands = [x for x in POOL if x[0] != prov]
+    if not chosen:
+        cands = [(tp, tm) for tp, tm in POOL
+                 if tp != prov and tp not in DEAD and tm not in DEAD_SLUGS
+                 and (not pin or family_of(tm) == pin)]
         if cands:
-            target = min(cands, key=lambda x: read_marker(x[0])[1])
-            degraded = True
-    if not target:
-        actions.append(f"{prov}: no pool target available; no rotation")
-        continue
-    tp, tm = target
-    tag = "DEGRADED TARGET " if degraded else ""
+            chosen = (cands[0][0], cands[0][1], True)
+    _TARGETS[ck] = chosen
+    return chosen
+
+
+def block_span(content):
+    """The TOP-LEVEL `model:` block as a match whose group(1) is its body."""
+    m = re.search(r"(?ms)^model:[ \t]*\n(.*?)(^\S|\Z)", content)
+    return m if m else None
+
+
+def rotate_block(block, tp, tm):
+    """Rewrite ONE model block: provider, default, AND the endpoint that must
+    follow the provider.
+
+    Measured defect this fixes (2026-10-16, card t_7d75bafd): v2 substituted
+    provider + default and left model.base_url alone, so profile `reviewer` ended
+    up with provider `opencode-go` and base_url
+    `https://inference-api.nousresearch.com/v1` — the OpenCode model name sent to
+    the Nous host. Every call fails there, and `fleet-route.py audit` (which reads
+    provider + model) cannot see it.
+    """
+    tbase = PROVIDER_BASE.get(tp, "")
+    want = [("provider", tp), ("default", tm)] + ([("base_url", tbase)] if tbase else [])
+    wantd = dict(want)
+    keys = {}
+    for ln in block.split("\n"):
+        s = ln.strip()
+        if s and ln[:1] in (" ", "\t") and ":" in s:
+            keys[s.split(":", 1)[0].strip()] = ln[: len(ln) - len(ln.lstrip())]
+    out, seen = [], set()
+    for ln in block.split("\n"):
+        s = ln.strip()
+        k = s.split(":", 1)[0].strip() if (s and ln[:1] in (" ", "\t") and ":" in s) else ""
+        if k in wantd and k not in seen:
+            out.append(f"{keys.get(k, '  ')}{k}: {wantd[k]}")
+            seen.add(k)
+            continue
+        out.append(ln)
+    missing = [(k, v) for k, v in want if k not in seen]
+    if tbase and "api_mode" not in keys:
+        missing.append(("api_mode", "chat_completions"))
+    if missing:
+        anchor = next((i for i, ln in enumerate(out) if ln.strip().startswith("provider:")), None)
+        ind = keys.get("provider", "  ")
+        add = [f"{ind}{k}: {v}" for k, v in missing]
+        out = (out[: anchor + 1] + add + out[anchor + 1:]) if anchor is not None else add + out
+    return "\n".join(out)
+
+
+for prov in saturated:
     # The DEFAULT profile lives in ~/.hermes/config.yaml, not profiles/*. Omitting it
     # was the other half of the blind spot: it is the profile that answers inbound A2A
     # (i.e. the on-call responder for money halts) and the one that was pinned to
@@ -383,27 +573,50 @@ for prov in saturated:
             content = open(pconf).read()
         except Exception:
             continue
-        m = re.search(r"(?ms)^model:\s*\n(.*?)(^\S|\Z)", content)
-        block = m.group(1) if m else ""
-        if re.search(rf"^\s*provider:\s*{re.escape(prov)}\s*$", block, re.M):
-            who = "default" if pconf.endswith("/.hermes/config.yaml") else pconf.split("/")[-2]
-            if LIVE:
-                newc = re.sub(r"(?m)^(\s*)provider: .*$", rf"\1provider: {tp}", content, count=1)
-                newc = re.sub(r"(?m)^(\s*)default: .*$", rf"\1default: {tm}", newc, count=1)
-                open(pconf, "w").write(newc)
-                chk = open(pconf).read()
-                if re.search(rf"provider:\s*{re.escape(tp)}", chk) and re.search(rf"default:\s*{re.escape(tm)}", chk):
-                    actions.append(f"{tag}ROTATED profile {who} -> {tp}/{tm}")
-                else:
-                    actions.append(f"!! {pconf}: rotation verify FAILED")
-            else:
-                actions.append(f"WOULD ROTATE {tag}profile {who} -> {tp}/{tm}")
+        m = block_span(content)
+        if not m:
+            continue
+        block = m.group(1)
+        if not re.search(rf"^\s*provider:\s*{re.escape(prov)}\s*$", block, re.M):
+            continue
+        who = "default" if pconf.endswith("/.hermes/config.yaml") else pconf.split("/")[-2]
+        pin = PINS.get(who, "")
+        target = pick_target(prov, pin)
+        if not target:
+            actions.append(f"!! {who}: primary {prov} is saturated but the rotation pool holds no "
+                           f"{('same-family (' + pin + ') ') if pin else ''}live target "
+                           f"({SPEC_PATH}) — a cross-family move is NOT allowed for a panel judge")
+            continue
+        tp, tm, degraded = target
+        tag = "DEGRADED TARGET " if degraded else ""
+        if not LIVE:
+            actions.append(f"WOULD ROTATE {tag}profile {who} -> {tp}/{tm}")
+            continue
+        newc = content[: m.start(1)] + rotate_block(block, tp, tm) + content[m.end(1):]
+        tmpf = pconf + ".tmp-health"
+        open(tmpf, "w").write(newc)
+        os.replace(tmpf, pconf)
+        chk = open(pconf).read()
+        cm = block_span(chk)
+        cblock = cm.group(1) if cm else chk
+        tbase = PROVIDER_BASE.get(tp, "")
+        okp = (re.search(rf"^\s*provider:\s*{re.escape(tp)}\s*$", cblock, re.M)
+               and re.search(rf"^\s*default:\s*{re.escape(tm)}\s*$", cblock, re.M)
+               and (not tbase or re.search(rf"^\s*base_url:\s*{re.escape(tbase)}\s*$", cblock, re.M)))
+        actions.append(f"{tag}ROTATED profile {who} -> {tp}/{tm}" if okp else
+                       f"!! {pconf}: rotation verify FAILED (provider/default/base_url did not all move)")
     for j in jobs:
         if not j.get("enabled"):
             continue
         resolved = j.get("provider") or SNAPSHOT_MAP.get(j.get("model_snapshot") or "")
         if resolved != prov:
             continue
+        jt = pick_target(prov, None)
+        if not jt:
+            actions.append(f"!! cron {j.get('name')}: no pool target available; not repinned")
+            continue
+        tp, tm, jdeg = jt
+        tag = "DEGRADED TARGET " if jdeg else ""
         if LIVE:
             r = subprocess.run(["hermes", "cron", "edit", j["id"], "--provider", tp, "--model", tm],
                                capture_output=True, text=True, timeout=60)
