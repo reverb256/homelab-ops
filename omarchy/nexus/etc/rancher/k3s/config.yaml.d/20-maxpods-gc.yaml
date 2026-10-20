@@ -1,0 +1,21 @@
+# Managed by homelab-ops — source: omarchy/nexus/etc/rancher/k3s/config.yaml.d/20-maxpods-gc.yaml
+# DO NOT hand-edit on the host. Edit the repo copy, commit, then run apply.sh.
+#
+# Incident 2026-10-18 (card t_a3f7e10c): nexus hit K3s's default max-pods=110
+# because 188 stale Failed/Succeeded pods accumulated faster than the
+# controller-manager pod GC could reap them (default terminated-pod-gc-threshold=12500).
+# New pods were rejected OutOfpods, blocking miner replacement on restart.
+#
+# Fixes:
+#   - max-pods=200: headroom for nexus's 95+ pinned pods (was 110, only 15 free)
+#   - terminated-pod-gc-threshold=50: reap stale pods once they exceed 50,
+#     instead of 12500 — the default that let 188 accumulate unchecked
+#
+# Merged at k3s startup with config.yaml.d/10-resolv-conf.yaml (alphabetical).
+# K3s reads resolvConf / kubelet-arg / kube-controller-arg only at startup;
+# restart k3s to apply. k3s restart does NOT restart running containers
+# (containerd shims survive), so miners keep mining.
+kubelet-arg:
+  - "max-pods=200"
+kube-controller-manager-arg:
+  - "terminated-pod-gc-threshold=50"

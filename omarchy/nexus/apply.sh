@@ -171,6 +171,24 @@ for tf in "$REPO_DIR"/tmpfiles.d/*.conf; do
   install_file "$tf" "/etc/tmpfiles.d/$(basename "$tf")"
 done
 
+# k3s config.yaml.d drop-ins: merged at k3s startup with the main config.yaml.
+# A changed drop-in sets K3S_CHANGED=1 and triggers a k3s restart below.
+# The 10-resolv-conf.yaml drop-in was previously deployed by apply-k3s-resolv-conf.sh;
+# this loop now owns ALL drop-ins idempotently (cmp-s skip on unchanged files).
+# kanban t_a3f7e10c (2026-10-18): max-pods=200 + terminated-pod-gc-threshold=50
+# were added here to fix the nexus OutOfpods saturation.
+K3S_CHANGED=0
+for d in "$REPO_DIR"/etc/rancher/k3s/config.yaml.d/*.yaml; do
+  [[ -f "$d" ]] || continue
+  if [[ -f "/etc/rancher/k3s/config.yaml.d/$(basename "$d")" ]] && cmp -s "$d" "/etc/rancher/k3s/config.yaml.d/$(basename "$d")"; then
+    printf '  ok: /etc/rancher/k3s/config.yaml.d/%s (unchanged)\n' "$(basename "$d")"
+  else
+    (( ! CHECK )) && $SUDO install -Dm0644 "$d" "/etc/rancher/k3s/config.yaml.d/$(basename "$d")"
+    printf '  set: /etc/rancher/k3s/config.yaml.d/%s\n' "$(basename "$d")"
+    K3S_CHANGED=1
+  fi
+done
+
 act "$SUDO systemctl daemon-reload"
 
 # Enable every timer in the component. Enabling is idempotent, so re-runs no-op.
@@ -414,5 +432,27 @@ fi
 # credential rather than missing state.
 log "Garage buckets and keys"
 act "$SUDO /usr/local/bin/garage-buckets-reconcile"
+
+# ── 8b. k3s restart (if k3s config changed) ────────────────────────────────
+# k3s reads its config.yaml + config.yaml.d only at startup. A changed drop-in
+# requires a restart. k3s restart does NOT restart running containers (containerd
+# shims survive), so miners keep mining through the restart.
+# Incident t_a3f7e10c (2026-10-18): max-pods=200 + terminated-pod-gc-threshold=50
+# added to fix nexus OutOfpods saturation.
+if (( K3S_CHANGED )); then
+  log "K3s config changed — restarting k3s"
+  if (( CHECK )); then
+    printf '  would: restart k3s.service\n'
+  else
+    $SUDO systemctl restart k3s
+    sleep 5
+    if ! systemctl is-active --quiet k3s; then
+      warn "k3s did not come up after restart. Recent log:"
+      $SUDO journalctl -u k3s -n 30 --no-pager >&2 || true
+      die "k3s.service failed — investigate immediately"
+    fi
+    log "  k3s active — new config applied (max-pods=200, terminated-pod-gc-threshold=50)"
+  fi
+fi
 
 log "Done$( (( CHECK )) && printf ' (check mode — nothing changed)' )"
