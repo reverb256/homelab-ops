@@ -28,6 +28,7 @@ SCRIPTS=(
   pihole-dns-deadlock.sh
   cron-sentinel-lane.sh
   feed-path-live.sh
+  alert-lane-live.sh
 )
 
 echo "verify/run_all.sh  host=$(hostname)  $(date '+%Y-%m-%d %H:%M:%S%z')"
