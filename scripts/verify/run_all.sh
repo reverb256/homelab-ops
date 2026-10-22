@@ -28,6 +28,7 @@ SCRIPTS=(
   pihole-dns-deadlock.sh
   cron-sentinel-lane.sh
   feed-path-live.sh
+  k3s-node-readiness.sh
   alert-lane-live.sh
 )
 
