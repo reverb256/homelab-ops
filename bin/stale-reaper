@@ -344,5 +344,5 @@ if ((JSON == 0)); then
   ((DRY_RUN)) && say ""
   say "stale-reaper: candidates=${#CANDIDATES[@]} reclaimable=$((total_rss / 1024))MB dry_run=$DRY_RUN host=$(hostname)"
 fi
-jlog "done host=$(hostname) candidates=${#CANDIDATES[@]} reclaimable_mb=$((total_rss / 1024)) dry_run=$DRY_RUN"
+logger -t "$TAG" -- "done host=$(hostname) candidates=${#CANDIDATES[@]} reclaimable_mb=$((total_rss / 1024)) dry_run=$DRY_RUN" 2>/dev/null || true
 exit 0

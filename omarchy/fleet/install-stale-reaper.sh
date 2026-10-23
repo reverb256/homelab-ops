@@ -20,7 +20,9 @@ run install -Dm644 "$here/systemd/stale-reaper.service" "$HOME/.config/systemd/u
 run install -Dm644 "$here/systemd/stale-reaper.timer" "$HOME/.config/systemd/user/stale-reaper.timer"
 
 run install -d -m755 "$HOME/.config/stale-reaper"
-if [[ ! -f $HOME/.config/stale-reaper/keep ]]; then
+if [[ $DRY == --dry-run ]]; then
+  echo "[dry] would seed $HOME/.config/stale-reaper/keep if missing"
+elif [[ ! -f $HOME/.config/stale-reaper/keep ]]; then
   cat >"$HOME/.config/stale-reaper/keep" <<'EOF'
 # stale-reaper keep list: one extended regex per line, matched against the
 # process cmdline. A match protects that process and its whole process tree.
