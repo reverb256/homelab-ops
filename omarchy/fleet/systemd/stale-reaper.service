@@ -1,0 +1,13 @@
+[Unit]
+Description=stale-reaper - kill helper processes whose job is over
+Documentation=https://github.com/reverb256/homelab-ops/blob/main/docs/stale-reaper.md
+After=default.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/stale-reaper
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=300
+# Never let the reaper itself be reaped by a sibling run.
+KillMode=process

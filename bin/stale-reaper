@@ -1,0 +1,348 @@
+#!/usr/bin/env bash
+# stale-reaper — kill processes whose job is over.
+#
+# Why: helper processes outlive the Hermes job that spawned them. pyright, MCP
+# servers, Unity/dotnet, VRoid/wine, Blender and headless Chromium keep running
+# for days after the job that owns them exited. On 2026-10-22 23:46 leftovers of
+# this class crashed zephyr's desktop session.
+#
+# Rules, in order:
+#   1. The denylist wins. Always. Checked before every other rule.
+#   2. Anything with a TTY is never touched (live human sessions).
+#   3. Anything holding a hermes-svc-lock is never touched.
+#   4. Helper allowlist + orphaned parent + age > 30 min  -> kill tree.
+#   5. hermes -z one-shot + age > 12 h + < 1% CPU         -> kill tree.
+#   6. Failed / main-pid-gone transient systemd user units -> stop, reset-failed.
+#
+# Usage: stale-reaper [--dry-run] [--json] [--verbose]
+# Docs: docs/stale-reaper.md
+set -uo pipefail
+
+DRY_RUN=0
+JSON=0
+VERBOSE=0
+
+MIN_AGE=${STALE_REAPER_MIN_AGE:-1800}            # 30 min
+HERMES_Z_MAX=${STALE_REAPER_HERMES_Z_MAX:-43200} # 12 h
+HERMES_Z_CPU=${STALE_REAPER_HERMES_Z_CPU:-1}     # percent, averaged over lifetime
+GRACE=${STALE_REAPER_GRACE:-15}                  # s between SIGTERM and SIGKILL
+LOCK_DIR=${HERMES_LOCK_DIR:-$HOME/.hermes/locks}
+KEEP_FILE=${STALE_REAPER_KEEP_FILE:-$HOME/.config/stale-reaper/keep}
+TAG=stale-reaper
+
+RED=$'\033[0;31m'; GRN=$'\033[0;32m'; YEL=$'\033[1;33m'; DIM=$'\033[2m'; NC=$'\033[0m'
+[[ -t 1 ]] || { RED=; GRN=; YEL=; DIM=; NC=; }
+
+# ── denylist: evaluated first, matched against the full cmdline ──────────────
+# Never kill: miners, the k3s stack, the Hermes gateway, computer.service,
+# interactive Hermes TUIs, the ComfyUI server, the desktop session, Grok Bot,
+# ssh/tmux, Xvfb/openbox (GUI jobs share DISPLAY=:99), system daemons.
+DENY_RE='peakminer|xmrig|srbminer|teamredminer|lolminer|nbminer|phoenixminer'
+DENY_RE+='|k3s|containerd|kubelet|kube-proxy|kube-apiserver|calico|csi-|flannel|etcd'
+DENY_RE+='|computer-voice|computer\.service'
+DENY_RE+='|gateway run|hermes-gateway'
+DENY_RE+='|tui_gateway|ui-tui|entry\.js'
+DENY_RE+='|main\.py --listen'
+DENY_RE+='|hyprland|Hyprland|start-hyprland|uwsm|quickshell|waybar|openbox|Xvfb'
+DENY_RE+='|grok-bot|Grok Bot'
+DENY_RE+='|^ssh|ssh:|sshd|tmux'
+DENY_RE+='|systemd|dbus-daemon|pipewire|wireplumber|gnome-keyring|gpg-agent'
+DENY_RE+='|hermes-svc-lock|stale-reaper( |$)'
+
+# ── helper classes ──────────────────────────────────────────────────────────
+# A helper has no reason to exist once the job that spawned it is gone.
+# browser_harness.daemon is deliberately ABSENT: it detaches to systemd --user
+# by design, so it always looks orphaned while it is live. It costs ~4 MB; leave
+# it to its owning job and list it in the report instead of guessing.
+# Classes where a listening TCP port means the process is a live service.
+PORT_GUARD='httpserver|mcp|pyright'
+# A headless Chromium tree is only a target when something in it says so:
+# an interactive browser must never match.
+BROWSER_RE='chromium|playwright'
+# Shell wrappers left behind by a dead job: the tree is the evidence.
+WRAPPER_RE='^(/[^ ]*/)?(ba)?sh .*(-lc|-lic|-c|-l) '
+
+usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+
+while (($#)); do
+  case $1 in
+    --dry-run|-n) DRY_RUN=1 ;;
+    --json) JSON=1; DRY_RUN=1 ;;
+    --verbose|-v) VERBOSE=1 ;;
+    --help|-h) usage 0 ;;
+    *) echo "stale-reaper: unknown option $1" >&2; usage 2 ;;
+  esac; shift
+done
+
+say() { printf '%s\n' "$*"; return 0; }
+vlog() { ((VERBOSE)) && printf '%s\n' "${DIM}$*${NC}"; return 0; }
+
+# journald is the durable record; stdout is for --dry-run and humans.
+jlog() {
+  logger -t "$TAG" -- "$*" 2>/dev/null || true
+  if ((DRY_RUN)); then printf '%s\n' "$YEL[DRY]$NC $*"
+  else printf '%s\n' "$GRN[KILL]$NC $*"; fi
+}
+
+# The per-user manager pid. `systemctl --user show -p MainPID` is empty (the
+# manager is not a unit of itself), so read it from the process table. A wrong
+# value here silently disables the orphan rule for the whole host: zephyr is
+# 1677, nexus is 1681.
+SYSTEMD_USER_PID=$(ps -eo pid=,args= | awk '$2 ~ /\/systemd$/ && $3 == "--user" {print $1; exit}')
+[[ $SYSTEMD_USER_PID =~ ^[0-9]+$ ]] || SYSTEMD_USER_PID=$(pgrep -f 'systemd --user' | head -1)
+[[ $SYSTEMD_USER_PID =~ ^[0-9]+$ ]] || SYSTEMD_USER_PID=1677
+# Setting STALE_REAPER_ORPHAN_PPIDS REPLACES the orphan-parent set: a test or a
+# probe must never silently inherit "everything under systemd --user" and reap
+# the live host. That mistake killed a live browser daemon once; do not repeat it.
+if [[ -n ${STALE_REAPER_ORPHAN_PPIDS:-} ]]; then
+  ORPHAN_PPIDS=" ${STALE_REAPER_ORPHAN_PPIDS//,/ } "
+else
+  ORPHAN_PPIDS=" 1 $SYSTEMD_USER_PID "
+fi
+
+# keep file: one regex per line, '#' comments. Protects the whole tree.
+KEEP_PATS=()
+if [[ -f $KEEP_FILE ]]; then
+  while IFS= read -r line; do
+    [[ -z ${line//[[:space:]]/} || $line == \#* ]] && continue
+    KEEP_PATS+=("$line")
+  done < "$KEEP_FILE"
+fi
+
+# ── snapshot the process table ──────────────────────────────────────────────
+declare -A PPID_OF ETIMES_OF RSS_OF TTY_OF CMD_OF
+pids=()
+while IFS=$'\t' read -r pid ppid et rss tty cmd; do
+  [[ -z $pid || -z $cmd ]] && continue
+  PPID_OF[$pid]=$ppid; ETIMES_OF[$pid]=$et; RSS_OF[$pid]=$rss
+  TTY_OF[$pid]=$tty;  CMD_OF[$pid]=$cmd; pids+=("$pid")
+done < <(ps -eo pid=,ppid=,etimes=,rss=,tty=,args= --no-headers |
+         awk '{p=$1;q=$2;e=$3;r=$4;t=$5; $1=$2=$3=$4=$5=""; sub(/^[ ]+/,"");
+               printf "%s\t%s\t%s\t%s\t%s\t%s\n", p,q,e,r,t,$0}')
+
+# ── protected set: reaper itself, its ancestors, lock holders ───────────────
+declare -A PROTECTED
+p=$BASHPID
+while [[ -n ${p:-} && $p != 0 ]]; do PROTECTED[$p]=1; p=${PPID_OF[$p]:-}; done
+if [[ -d $LOCK_DIR ]]; then
+  for holder in "$LOCK_DIR"/*.lock.d/holder; do
+    [[ -f $holder ]] || continue
+    hp=$(sed -n 's/^pid=//p' "$holder" 2>/dev/null)
+    [[ $hp =~ ^[0-9]+$ ]] || continue
+    PROTECTED[$hp]=1
+    vlog "protected: lock holder $hp ($(basename "$(dirname "$holder")" .lock.d))"
+  done
+fi
+
+# ── helpers ─────────────────────────────────────────────────────────────────
+tree_of() { # pid -> pid and all descendants, one per line
+  local root=$1 node c
+  local -a out=() frontier=("$root")
+  declare -A seen=()
+  while ((${#frontier[@]})); do
+    node=${frontier[0]}; frontier=("${frontier[@]:1}")
+    [[ -n ${seen[$node]:-} ]] && continue
+    seen[$node]=1; out+=("$node")
+    for c in "${pids[@]}"; do
+      [[ ${PPID_OF[$c]:-} == "$node" ]] && frontier+=("$c")
+    done
+  done
+  printf '%s\n' "${out[@]}"
+}
+
+avg_cpu() { # pid etimes -> lifetime-average CPU percent
+  local pid=$1 et=$2 st
+  ((et > 0)) || { echo 0; return; }
+  [[ -r /proc/$pid/stat ]] || { echo 0; return; }
+  st=$(awk '{print $14+$15}' "/proc/$pid/stat" 2>/dev/null) || { echo 0; return; }
+  awk -v t="$st" -v e="$et" -v hz="$(getconf CLK_TCK)" 'BEGIN{printf "%.1f", (t/hz)/e*100}'
+}
+
+# reason this pid must NOT be killed, or empty
+unit_active() { # unit -> 0 when active
+  local u=$1
+  [[ -n ${ACTIVE_UNITS[$u]:-} ]] && return "$ACTIVE_UNITS[$u]"
+  if systemctl --user is-active --quiet "$u" 2>/dev/null; then ACTIVE_UNITS[$u]=0; else ACTIVE_UNITS[$u]=1; fi
+  return "${ACTIVE_UNITS[$u]}"
+}
+
+# The unit a pid belongs to, if any. A process inside an ACTIVE unit is part of
+# a live job: never a target. Skip the per-user manager unit itself.
+unit_of_pid() {
+  [[ -r /proc/$1/cgroup ]] || return 0
+  sed -n 's#.*/\([^/]*\.service\)\(/.*\)\{0,1\}$#\1#p' "/proc/$1/cgroup" 2>/dev/null |
+    grep -v '^user@' | head -1
+}
+
+deny_reason() {
+  local pid=$1 cmd=$2 pat unit
+  [[ -n ${PROTECTED[$pid]:-} ]] && { echo "protected:reaper-or-lock-holder"; return; }
+  if [[ $cmd =~ $DENY_RE ]]; then echo "denylist:${BASH_REMATCH[0]}"; return; fi
+  for pat in "${KEEP_PATS[@]}"; do
+    if [[ $cmd =~ $pat ]]; then echo "keep-file:$pat"; return; fi
+  done
+  if [[ $cmd == *browser_harness.daemon* ]]; then echo "keep:detached-browser-daemon"; return; fi
+  unit=$(unit_of_pid "$pid")
+  if [[ -n $unit ]] && unit_active "$unit"; then echo "active-unit:$unit"; return; fi
+  [[ ${TTY_OF[$pid]:-?} != '?' ]] && { echo "tty:${TTY_OF[$pid]}"; return; }
+  return 0
+}
+
+# class of a helper process, matched on its own cmdline, or empty
+class_of() {
+  local cmd=$1
+  [[ $cmd =~ pyright-langserver ]] && { echo pyright; return; }
+  [[ $cmd =~ (npm\ exec|node_modules/\.bin/(mcp|argocd-mcp|obsidian-mcp)) ]] && { echo mcp; return; }
+  [[ $cmd =~ (mcp_server|mcp-server|mcp-for-unity|mcp-for-blender|comfyui_mcp_server|mcpforunity) ]] && { echo mcp; return; }
+  [[ $cmd =~ python3?\ -m\ http\.server ]] && { echo httpserver; return; }
+  [[ $cmd =~ (VRoidStudio|vroid-studio) ]] && { echo vroid; return; }
+  [[ $cmd =~ (UnityHub|VBCSCompiler|dotnet\ exec\ .*/Unity/) ]] && { echo unity; return; }
+  [[ $cmd =~ (blender\ -b|blender\ .*--background) ]] && { echo blender; return; }
+  [[ $cmd =~ (hermes_kernel|hermes-kernel) ]] && { echo kernel; return; }
+  return 0
+}
+
+# class of an orphaned tree: the root itself, a headless browser tree, or the
+# helper a leftover shell wrapper was running.
+class_of_tree() {
+  local root=$1 tp cls
+  cls=$(class_of "${CMD_OF[$root]:-}"); [[ -n $cls ]] && { echo "$cls"; return; }
+  if [[ ${CMD_OF[$root]:-} =~ $BROWSER_RE ]]; then
+    for tp in $(tree_of "$root"); do
+      [[ ${CMD_OF[$tp]:-} == *--headless* ]] && { echo browser; return; }
+    done
+  fi
+  if [[ ${CMD_OF[$root]:-} =~ $WRAPPER_RE ]]; then
+    for tp in $(tree_of "$root"); do
+      cls=$(class_of "${CMD_OF[$tp]:-}"); [[ -n $cls ]] && { echo "wrapped-$cls"; return; }
+    done
+    for tp in $(tree_of "$root"); do
+      [[ ${CMD_OF[$tp]:-} == *--headless* && ${CMD_OF[$tp]:-} =~ $BROWSER_RE ]] && { echo browser; return; }
+    done
+  fi
+  return 0
+}
+
+LISTENING=($(ss -ltnp 2>/dev/null | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | sort -u))
+
+# ── category A: orphaned helpers, category B: idle long hermes -z jobs ──────
+declare -A CLAIMED ACTIVE_UNITS
+CANDIDATES=()
+for pid in "${pids[@]}"; do
+  [[ -n ${CLAIMED[$pid]:-} ]] && continue
+  ((pid > 2)) || continue
+  cmd=${CMD_OF[$pid]:-}
+  age=${ETIMES_OF[$pid]:-0}
+
+  # ── category A: orphaned helper tree ────────────────────────────────────
+  if [[ $ORPHAN_PPIDS == *" ${PPID_OF[$pid]:-0} "* ]] && ((age >= MIN_AGE)); then
+    class=$(class_of_tree "$pid")
+    if [[ -n $class ]]; then
+      base=${class#wrapped-}
+      reason=$(deny_reason "$pid" "$cmd")
+      if [[ -n $reason ]]; then
+        vlog "skip $pid ($reason) class=$class"
+      else
+        mapfile -t t < <(tree_of "$pid")
+        # a helper still serving a port, in the classes where the port IS the
+        # service, is treated as live: skip it and let a human decide
+        skip=0
+        if [[ "|$PORT_GUARD|" == *"|$base|"* ]]; then
+          for lp in "${LISTENING[@]}"; do for tp in "${t[@]}"; do [[ $lp == "$tp" ]] && skip=1; done; done
+          ((skip)) && vlog "skip $pid (listening port) class=$class"
+        fi
+        # no member of the tree may be protected
+        if ((skip == 0)); then
+          bad=0
+          for tp in "${t[@]}"; do
+            [[ -n $(deny_reason "$tp" "${CMD_OF[$tp]:-}") ]] && bad=1
+          done
+          ((bad)) && { skip=1; vlog "skip $pid (tree member protected) class=$class"; }
+        fi
+        if ((skip == 0)); then
+          CANDIDATES+=("$pid"$'\t'"orphan-$class"$'\t'"$class")
+          for tp in "${t[@]}"; do CLAIMED[$tp]=1; done
+        fi
+      fi
+      continue
+    fi
+  fi
+
+  # ── category B: hermes -z one-shots that ran too long and idle ──────────
+  if [[ $cmd == *hermes* && $cmd == *' -z '* ]] && ((age >= HERMES_Z_MAX)); then
+    reason=$(deny_reason "$pid" "$cmd")
+    if [[ -n $reason ]]; then vlog "skip $pid (hermes -z, $reason)"; continue; fi
+    cpu=$(avg_cpu "$pid" "$age")
+    awk -v c="$cpu" -v m="$HERMES_Z_CPU" 'BEGIN{exit !(c < m)}' || continue
+    CANDIDATES+=("$pid"$'\t'"hermes-z-idle-${cpu}pct"$'\t'"hermes-z")
+    mapfile -t t < <(tree_of "$pid"); for tp in "${t[@]}"; do CLAIMED[$tp]=1; done
+  fi
+done
+
+# ── report / kill ───────────────────────────────────────────────────────────
+total_rss=0
+for c in "${CANDIDATES[@]}"; do
+  IFS=$'\t' read -r pid reason class <<<"$c"
+  mapfile -t t < <(tree_of "$pid")
+  rss=0; for tp in "${t[@]}"; do rss=$((rss + ${RSS_OF[$tp]:-0})); done
+  total_rss=$((total_rss + rss))
+  age_h=$(awk -v s="${ETIMES_OF[$pid]}" 'BEGIN{printf "%.1f", s/3600}')
+  desc="pid=$pid class=$class age=${age_h}h procs=${#t[@]} rss=$((rss / 1024))MB reason=$reason cmd=${CMD_OF[$pid]:0:120}"
+  if ((JSON)); then
+    printf '{"pid":%s,"class":"%s","reason":"%s","age_h":%s,"procs":%s,"rss_mb":%s,"cmd":"%s"}\n' \
+      "$pid" "$class" "$reason" "$age_h" "${#t[@]}" "$((rss / 1024))" \
+      "$(printf '%s' "${CMD_OF[$pid]}" | tr -d '\\"' | cut -c1-160)"
+  else
+    jlog "$desc"
+  fi
+  ((DRY_RUN)) && continue
+  for tp in "${t[@]}"; do kill -TERM "$tp" 2>/dev/null; done
+  for _ in $(seq "$GRACE"); do
+    alive=0; for tp in "${t[@]}"; do kill -0 "$tp" 2>/dev/null && alive=1; done
+    ((alive)) || break; sleep 1
+  done
+  for tp in "${t[@]}"; do kill -KILL "$tp" 2>/dev/null; done
+  still=0; for tp in "${t[@]}"; do kill -0 "$tp" 2>/dev/null && still=$((still + 1)); done
+  jlog "killed pid=$pid procs=${#t[@]} rss=$((rss / 1024))MB survivors=$still"
+done
+
+# ── category C: failed / abandoned transient systemd --user units ───────────
+# STALE_REAPER_SKIP_UNITS=1 keeps a test or a manual probe from touching units.
+if [[ ${STALE_REAPER_SKIP_UNITS:-0} != 1 ]]; then
+mapfile -t UNITS < <(systemctl --user list-units --failed --no-legend --plain --no-pager 2>/dev/null |
+                     sed 's/^[●*] *//' | awk '{print $1}' | grep -E '\.(service|timer)$')
+for unit in "${UNITS[@]}"; do
+  [[ $unit == stale-reaper.* ]] && continue
+  transient=$(systemctl --user show "$unit" -p Transient --value 2>/dev/null)
+  mainpid=$(systemctl --user show "$unit" -p MainPID --value 2>/dev/null)
+  if ((DRY_RUN)); then
+    if [[ $transient == yes ]]; then
+      say "$YEL[DRY]$NC systemctl --user stop $unit; reset-failed (failed transient, MainPID=${mainpid:-0})"
+    else
+      say "$YEL[DRY]$NC systemctl --user reset-failed $unit (failed unit)"
+    fi
+    continue
+  fi
+  [[ $transient == yes ]] && { systemctl --user stop "$unit" 2>/dev/null
+    jlog "stopped failed transient unit $unit (MainPID=${mainpid:-0})"; }
+  systemctl --user reset-failed "$unit" 2>/dev/null && jlog "reset-failed $unit"
+done
+
+# transient run-*/hermes-* units left active with no main process
+while read -r unit; do
+  [[ -z $unit || $unit == stale-reaper.* ]] && continue
+  state=$(systemctl --user show "$unit" -p ActiveState --value 2>/dev/null)
+  mainpid=$(systemctl --user show "$unit" -p MainPID --value 2>/dev/null)
+  [[ $state == active && ${mainpid:-0} == 0 ]] || continue
+  if ((DRY_RUN)); then say "$YEL[DRY]$NC systemctl --user stop $unit (active, no MainPID)"; continue; fi
+  systemctl --user stop "$unit" 2>/dev/null && jlog "stopped orphan unit $unit (MainPID gone)"
+done < <(systemctl --user list-units --all --no-legend --plain --no-pager 'run-*.service' 'hermes-*.service' 2>/dev/null |
+         sed 's/^[●*] *//' | awk '{print $1}' | grep -E '\.service$')
+fi
+
+if ((JSON == 0)); then
+  ((DRY_RUN)) && say ""
+  say "stale-reaper: candidates=${#CANDIDATES[@]} reclaimable=$((total_rss / 1024))MB dry_run=$DRY_RUN host=$(hostname)"
+fi
+jlog "done host=$(hostname) candidates=${#CANDIDATES[@]} reclaimable_mb=$((total_rss / 1024)) dry_run=$DRY_RUN"
+exit 0

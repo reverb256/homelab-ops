@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# hermes-job — run a Hermes one-shot so its helper processes die with it.
+#
+# Why: `hermes -z ...` under nohup leaves pyright, MCP servers, Unity, VRoid and
+# Chromium running after the job exits. A transient unit with
+# KillMode=control-group puts the whole process tree in one cgroup, so the kernel
+# tears every helper down when the job ends or hits its time limit.
+#
+# Usage: hermes-job <name> <taskfile> [max-hours]   (default 6)
+#   name      short slug, [a-z0-9-], becomes unit hermes-<name>
+#   taskfile  markdown file holding the -z prompt
+#   max-hours RuntimeMaxSec; the job is killed after this
+#
+# Log: <taskfile>.log next to the task file. Watch: journalctl --user -u hermes-<name> -f
+set -euo pipefail
+
+PROVIDER=${HERMES_JOB_PROVIDER:-opencode-go}
+MODEL=${HERMES_JOB_MODEL:-deepseek-v4.1-flash}
+
+die() { printf 'hermes-job: %s\n' "$*" >&2; exit 1; }
+
+[[ $# -ge 2 ]] || { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+
+name=$1; taskfile=$2; hours=${3:-6}
+
+[[ $name =~ ^[a-z0-9][a-z0-9-]{0,40}$ ]] || die "name must match [a-z0-9-] (got '$name')"
+[[ -f $taskfile ]] || die "taskfile not found: $taskfile"
+[[ $hours =~ ^[0-9]+(\.[0-9]+)?$ ]] || die "max-hours must be a number (got '$hours')"
+
+unit="hermes-${name}"
+taskfile=$(realpath "$taskfile")
+log="${taskfile%.md}.log"
+command -v systemd-run >/dev/null || die "systemd-run not found"
+command -v hermes >/dev/null || die "hermes not on PATH"
+
+if systemctl --user is-active --quiet "$unit"; then
+  die "unit $unit is already running: systemctl --user status $unit"
+fi
+# A stale failed unit would block reuse; --collect cleans up on exit, this covers
+# a unit left behind by an older run.
+systemctl --user reset-failed "$unit" 2>/dev/null || true
+
+printf 'hermes-job: %s -> %s (max %sh)\n  log:    %s\n  follow: journalctl --user -u %s -f\n' \
+  "$name" "$unit" "$hours" "$log" "$unit"
+
+systemd-run --user \
+  --unit="$unit" \
+  --collect \
+  --description="hermes job ${name} (${hours}h max)" \
+  -p RuntimeMaxSec="${hours}h" \
+  -p KillMode=control-group \
+  -p KillSignal=SIGTERM \
+  -p TimeoutStopSec=20 \
+  -p SendSIGKILL=yes \
+  -p Nice=10 \
+  -p WorkingDirectory="$PWD" \
+  --setenv="HERMES_JOB_TASKFILE=$taskfile" \
+  --setenv="HERMES_JOB_LOG=$log" \
+  --setenv="HERMES_JOB_NAME=$unit" \
+  --setenv="HERMES_JOB_PROVIDER=$PROVIDER" \
+  --setenv="HERMES_JOB_MODEL=$MODEL" \
+  /bin/bash -lc 'exec hermes --provider "$HERMES_JOB_PROVIDER" -m "$HERMES_JOB_MODEL" \
+    -z "$(cat "$HERMES_JOB_TASKFILE")" >>"$HERMES_JOB_LOG" 2>&1' \
+  >/dev/null
+
+printf 'hermes-job: started. status: systemctl --user status %s\n' "$unit"
